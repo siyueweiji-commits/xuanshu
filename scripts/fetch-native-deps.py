@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import os
 import pathlib
+import shutil
 import ssl
 import subprocess
 import sys
@@ -32,23 +33,34 @@ PKG = "better-sqlite3"
 
 
 def electron_abi() -> tuple[str, str]:
-    """返回 (electron 版本, ABI 版本号)，如 ("31.7.7", "125")"""
-    exe = str(ROOT / "node_modules" / "electron" / "dist" / "electron.exe")
-    if not os.path.exists(exe):
-        # 退化为读取 package.json 声明版本
-        pkg = json.loads((ROOT / "node_modules" / "electron" / "package.json").read_text("utf-8"))
+    """返回 (electron 版本, ABI 版本号)，如 ("31.7.7", "125")
+
+    `-p` 是 Node 专有的 CLI 参数，Electron 不认；直接 `electron -p xxx` 会把
+    `xxx` 当成「要打开的应用目录」，弹出模态错误框（Unable to find Electron app at ...）。
+    因此这里必须**显式设置** ELECTRON_RUN_AS_NODE=1，让 electron 以纯 Node 模式运行。
+    """
+    pkg = json.loads((ROOT / "node_modules" / "electron" / "package.json").read_text("utf-8"))
+    exe = ROOT / "node_modules" / "electron" / "dist" / "electron.exe"
+
+    if not exe.exists():
         return pkg["version"], ""
 
-    out = subprocess.run(
-        [exe, "-p", "process.versions.modules"],
-        capture_output=True,
-        text=True,
-        env={k: v for k, v in os.environ.items() if k != "ELECTRON_RUN_AS_NODE"},
-        timeout=60,
-    )
-    modules = out.stdout.strip() or "?"
-    pkg = json.loads((ROOT / "node_modules" / "electron" / "package.json").read_text("utf-8"))
-    return pkg["version"], modules
+    try:
+        out = subprocess.run(
+            [str(exe), "-p", "process.versions.modules"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+            check=False,
+            env={**os.environ, "ELECTRON_RUN_AS_NODE": "1"},  # 关键：以 Node 模式运行
+        )
+    except Exception:  # noqa: BLE001
+        return pkg["version"], ""
+
+    modules = (out.stdout or "").strip()
+    return pkg["version"], modules if modules.isdigit() else ""
 
 
 def installed_version() -> str:
@@ -61,9 +73,19 @@ def bootstrap_electron() -> None:
     dist = ROOT / "node_modules" / "electron" / "dist"
     if dist.exists():
         return
+
+    node = shutil.which("node")
+    if not node:
+        raise SystemExit(
+            "[deps] electron 二进制缺失，且 PATH 中找不到 node。\n"
+            "       请在能联网的终端执行：\n"
+            "         set ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/\n"
+            "         node node_modules/electron/install.js"
+        )
+
     print("[deps] electron 二进制缺失，先补装…")
     subprocess.run(
-        [sys.executable, str(ROOT / "node_modules" / "electron" / "install.js")],
+        [node, str(ROOT / "node_modules" / "electron" / "install.js")],
         cwd=str(ROOT),
         env={**os.environ, "ELECTRON_MIRROR": "https://npmmirror.com/mirrors/electron/"},
         check=True,
@@ -82,12 +104,14 @@ def main() -> int:
     bootstrap_electron()
 
     abi = os.environ.get("XUANSHU_ELECTRON_ABI", "125")
+    version = "?"
     try:
         version, detected = electron_abi()
-        if detected and detected != "?":
+        if detected:
             abi = detected
+        else:
+            print(f"[deps] 未能探测到 ABI，回落到 v{abi}（可用 XUANSHU_ELECTRON_ABI 覆盖）")
     except Exception as exc:  # noqa: BLE001
-        version = "?"
         print(f"[deps] 探测 Electron ABI 失败（{exc}），使用默认 v{abi}")
 
     pkg_ver = installed_version()
