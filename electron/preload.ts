@@ -4,6 +4,7 @@ import { contextBridge, ipcRenderer } from "electron";
 const ALLOWED_CHANNELS = [
   /^app:/,
   /^profile:/,
+  /^calendar:/,
   /^chart:/,
   /^divination:/,
   /^rules:/,

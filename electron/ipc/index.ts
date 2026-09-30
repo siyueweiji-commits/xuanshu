@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
 import { getDb } from "../db/database";
-import { calcZiwei, ZiweiRequest } from "../services/ziwei";
+import { calcZiwei, calcZiweiHoroscope, ZiweiRequest, ZiweiHoroscopeRequest } from "../services/ziwei";
+import { convertCalendar, toTrueSolarTime, listCities, TrueSolarRequest } from "../services/calendar";
 import { calcBazi, BaziRequest } from "../services/bazi";
 import { shijianQigua, shuziQigua } from "../services/meihua";
 import { qigua } from "../services/liuyao";
@@ -88,6 +89,60 @@ export function registerIpcHandlers(): void {
     };
     return calcBazi(req);
   });
+
+  // 紫微运限（M2）：大限 / 流年 / 流月 / 流日 / 流时
+  handle("chart:ziwei-horoscope", (payload) => {
+    const o = asObject(payload);
+    const req: ZiweiHoroscopeRequest = {
+      gender: str(o, "gender", "男"),
+      year: num(o, "year"),
+      month: num(o, "month"),
+      day: num(o, "day"),
+      timeIndex: num(o, "timeIndex"),
+      calendar: str(o, "calendar", "solar") === "lunar" ? "lunar" : "solar",
+      targetYear: num(o, "targetYear"),
+      targetMonth: num(o, "targetMonth"),
+      targetDay: num(o, "targetDay")
+    };
+    // 不传目标时辰时，沿用本命时辰（避免默认 0 覆盖）
+    if (typeof o.targetTimeIndex === "number" && Number.isFinite(o.targetTimeIndex)) {
+      req.targetTimeIndex = o.targetTimeIndex;
+    }
+    return calcZiweiHoroscope(req);
+  });
+
+  // 历法（M2）：公农历互转 / 干支 / 节气
+  handle("calendar:convert", (payload) => {
+    const o = asObject(payload);
+    return convertCalendar({
+      year: num(o, "year"),
+      month: num(o, "month"),
+      day: num(o, "day"),
+      hour: num(o, "hour"),
+      minute: num(o, "minute")
+    });
+  });
+
+  // 真太阳时校正
+  handle("calendar:truesolar", (payload) => {
+    const o = asObject(payload);
+    const req: TrueSolarRequest = {
+      year: num(o, "year"),
+      month: num(o, "month"),
+      day: num(o, "day"),
+      hour: num(o, "hour"),
+      minute: num(o, "minute"),
+      city: str(o, "city") || undefined
+    };
+    const lon = o.longitude;
+    if (typeof lon === "number" && Number.isFinite(lon)) {
+      req.longitude = lon;
+    }
+    return toTrueSolarTime(req);
+  });
+
+  // 城市经纬度（供真太阳时选择）
+  handle("calendar:cities", () => listCities());
 
   // 起卦
   handle("divination:meihua", (payload) => {
