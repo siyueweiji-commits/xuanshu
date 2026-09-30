@@ -8,7 +8,7 @@
 
 - **开箱即用**：Windows `.exe` / macOS `.dmg` / Linux `.AppImage`
 - **离线优先**：断网可完整使用
-- **联网增强**：有网时从 [`xuanshu-data`](https://github.com/pulling-xuanshu/xuanshu-data) 自动更新历法 / 规则库 / 知识库
+- **联网增强**：有网时从 [`xuanshu-data`](https://github.com/siyueweiji-commits/xuanshu-data) 自动更新历法 / 规则库 / 知识库
 - **数据自持**：SQLite 本地存储，不上传云端，可导出 / 可删除
 - **规则透明**：规则库 JSON 可查看、可修改、可导入导出
 
