@@ -7,23 +7,26 @@
   2. 推送 xuanshu-data   -> github.com/siyueweiji-commits/xuanshu-data
   3. 在 xuanshu 创建 M1~M10 共 10 个里程碑 Issue（幂等，重复跑不会建重复的）
 
-用法
-----
+用法（最简单）
+--------------
+双击项目根目录的 `一键推送GitHub.bat`，按提示粘贴 PAT 即可。
+
+用法（命令行）
+--------------
 先准备一个有 repo 权限的 PAT（GitHub -> Settings -> Developer settings ->
 Personal access tokens -> Tokens(classic) -> Generate new token，勾选 `repo`），
 然后在本文件所在目录执行：
 
+    python scripts/bootstrap_github.py
+
+脚本会提示你粘贴 PAT。也可以提前用环境变量传：
+
     # Git Bash
-    export GITHUB_TOKEN=ghp_xxxxxxxx
-    python scripts/bootstrap_github.py
-
+    export GITHUB_TOKEN=ghp_xxxxxxxx && python scripts/bootstrap_github.py
     # Windows CMD
-    set GITHUB_TOKEN=ghp_xxxxxxxx
-    python scripts/bootstrap_github.py
-
+    set GITHUB_TOKEN=ghp_xxxxxxxx && python scripts/bootstrap_github.py
     # PowerShell
-    $env:GITHUB_TOKEN="ghp_xxxxxxxx"
-    python scripts/bootstrap_github.py
+    $env:GITHUB_TOKEN="ghp_xxxxxxxx"; python scripts/bootstrap_github.py
 
 只想干其中一件事时加参数：
     python scripts/bootstrap_github.py --only push      # 只推代码
@@ -516,10 +519,15 @@ def main() -> int:
 
     token = os.environ.get("GITHUB_TOKEN", "").strip()
     if not token:
-        die("未找到 GITHUB_TOKEN 环境变量。\n"
-            "    Git Bash : export GITHUB_TOKEN=ghp_xxx\n"
-            "    CMD      : set GITHUB_TOKEN=ghp_xxx\n"
-            "    PowerShell: $env:GITHUB_TOKEN=\"ghp_xxx\"")
+        print("\n未检测到 GITHUB_TOKEN 环境变量。")
+        print("请把你的 GitHub PAT 粘贴到下面，然后按回车：")
+        print("（粘贴后屏幕会显示出字符，这是正常的）")
+        try:
+            token = input("\nPAT > ").strip()
+        except (EOFError, KeyboardInterrupt):
+            token = ""
+        if not token:
+            die("没有提供 PAT，已退出。")
 
     # 先校验 token
     code, me = api(token, "GET", "/user")
