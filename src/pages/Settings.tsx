@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ipc } from "../lib/ipc";
 import PageHead from "../components/PageHead";
+import UpdatePanel from "../components/UpdatePanel";
 
 interface AppInfo {
   appName: string;
@@ -327,6 +328,8 @@ export default function Settings() {
       </section>
 
       <RuleLib />
+
+      <UpdatePanel />
 
       <section className="card card-p">
         <h2 className="title">免责声明</h2>

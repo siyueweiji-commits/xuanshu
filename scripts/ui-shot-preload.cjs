@@ -473,7 +473,74 @@ const HANDLERS = {
     path: path.join("C:\\Users", "Documents", "XuanShu", "回测记录-2026-09-01_2026-09-30-20260930134000.csv")
   }),
 
-  "feedback:backtest": (o) => mockBacktest(str(o, "dateFrom"), str(o, "dateTo"))
+  "feedback:backtest": (o) => mockBacktest(str(o, "dateFrom"), str(o, "dateTo")),
+
+  /* ---------- M8：数据更新（截图用静态数据） ---------- */
+
+  "update:overview": () => ({
+    version: "2026.09.30",
+    sourceUrl: "https://raw.githubusercontent.com/siyueweiji-commits/xuanshu-data/main",
+    autoCheck: true,
+    kinds: [
+      { kind: "rules", builtin: 5, updated: 5 },
+      { kind: "knowledge", builtin: 2, updated: 2 },
+      { kind: "templates", builtin: 3, updated: 3 },
+      { kind: "data", builtin: 1, updated: 1 }
+    ],
+    backups: [
+      { name: "20260930-141210", files: 11, createdAt: "20260930-141210" },
+      { name: "20260930-135002", files: 11, createdAt: "20260930-135002" }
+    ]
+  }),
+  "update:settings": () => ({
+    sourceUrl: "https://raw.githubusercontent.com/siyueweiji-commits/xuanshu-data/main",
+    autoCheck: true
+  }),
+  "update:set-settings": (o) => ({ sourceUrl: str(o, "sourceUrl"), autoCheck: o.autoCheck !== false }),
+  "update:check": () => ({
+    ok: true,
+    source: "https://raw.githubusercontent.com/siyueweiji-commits/xuanshu-data/main",
+    sourceKind: "http",
+    localVersion: "2026.09.20",
+    remoteVersion: "2026.09.30",
+    hasUpdate: true,
+    total: 11,
+    changedCount: 4,
+    extraLocal: 0,
+    error: null,
+    files: [
+      { path: "rules/huangli.json", kind: "rules", remoteHash: "sha256:8bb63732c1cb5fe5bead884a082742a73a8515554f0c2dd517c65fa7ec91f6cb", localHash: "sha256:11aa2233", isNew: false, changed: true },
+      { path: "rules/meihua.json", kind: "rules", remoteHash: "sha256:0e8b1cb3dff08175823f5c095afa9b5a6d17a3f16965ed03063d7fea13cf7a4b", localHash: "sha256:44bb5566", isNew: false, changed: true },
+      { path: "knowledge/gua.json", kind: "knowledge", remoteHash: "sha256:9d1e2f3a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f6", localHash: null, isNew: true, changed: true },
+      { path: "templates/range_report.md", kind: "templates", remoteHash: "sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", localHash: "sha256:778899aa", isNew: false, changed: true }
+    ]
+  }),
+  "update:run": () => ({
+    ok: true,
+    source: "https://raw.githubusercontent.com/siyueweiji-commits/xuanshu-data/main",
+    fromVersion: "2026.09.20",
+    toVersion: "2026.09.30",
+    updated: 4,
+    skipped: 7,
+    failed: 0,
+    backupDir: path.join("C:\\Users", "程倞", "AppData", "Roaming", "XuanShu", "data", ".backup", "20260930-141210"),
+    files: [],
+    error: null,
+    finishedAt: "2026-09-30T14:12:10.000Z"
+  }),
+  "update:logs": () => [
+    { id: 4, source: "https://raw.githubusercontent.com/siyueweiji-commits/xuanshu-data/main", status: "success", message: "2026.09.20 → 2026.09.30：更新 4 / 跳过 7 / 失败 0", created_at: "2026-09-30 14:12:10" },
+    { id: 3, source: "rollback", status: "success", message: "回滚到 20260930-135002：还原 11 / 清理 0", created_at: "2026-09-30 13:51:22" },
+    { id: 2, source: "https://raw.githubusercontent.com/siyueweiji-commits/xuanshu-data/main", status: "noop", message: "2026.09.20 → 2026.09.20：更新 0 / 跳过 11 / 失败 0", created_at: "2026-09-30 13:50:02" },
+    { id: 1, source: "https://127.0.0.1:1/xuanshu-offline-test", status: "failed", message: "0 → 0 失败：fetch failed", created_at: "2026-09-30 13:48:31" }
+  ],
+  "update:clear-logs": () => ({ removed: 4 }),
+  "update:backups": () => [
+    { name: "20260930-141210", files: 11, createdAt: "20260930-141210" },
+    { name: "20260930-135002", files: 11, createdAt: "20260930-135002" }
+  ],
+  "update:rollback": () => ({ ok: true, backup: "20260930-141210", restored: 11, removed: 0, error: null }),
+  "update:drop-backup": () => ({ dropped: true })
 };
 
 contextBridge.exposeInMainWorld("xuanshu", {

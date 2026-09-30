@@ -10,7 +10,7 @@
  *      不必在前端再实现一个 Markdown 解析器。
  */
 import fs from "node:fs";
-import path from "node:path";
+import { builtinDir, resolveResource } from "./dataPaths";
 import { calcDaily, DailyResult, AdviceItem, ADVICE_GROUPS, AdviceGroup } from "./daily";
 import { renderTemplate } from "./template";
 import { starBriefs } from "./knowledge";
@@ -29,7 +29,18 @@ export interface TemplateMeta {
 }
 
 export function builtinTemplatesDir(): string {
-  return path.resolve(__dirname, "../../resources/templates");
+  return builtinDir("templates");
+}
+
+/** 读取模板文件：用户目录优先（更新落地），其次内置 */
+function readTemplateFile(file: string): string | null {
+  const p = resolveResource("templates", file);
+  if (!p) return null;
+  try {
+    return fs.readFileSync(p, "utf-8");
+  } catch {
+    return null;
+  }
 }
 
 interface TemplateIndex {
@@ -44,9 +55,9 @@ const FALLBACK_TEMPLATES: TemplateMeta[] = [
 
 export function listTemplates(): TemplateMeta[] {
   try {
-    const file = path.join(builtinTemplatesDir(), "index.json");
-    const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as TemplateIndex;
-    const list = (parsed.templates ?? []).filter(
+    const raw = readTemplateFile("index.json");
+    const parsed = raw ? (JSON.parse(raw) as TemplateIndex) : null;
+    const list = (parsed?.templates ?? []).filter(
       (t) => t && typeof t.id === "string" && typeof t.file === "string"
     );
     if (list.length) return list;
@@ -61,12 +72,9 @@ function readTemplate(id: string): { meta: TemplateMeta; source: string } {
     listTemplates().find((t) => t.id === id) ??
     FALLBACK_TEMPLATES.find((t) => t.id === id) ??
     FALLBACK_TEMPLATES[0];
-  try {
-    const source = fs.readFileSync(path.join(builtinTemplatesDir(), meta.file), "utf-8");
-    return { meta, source };
-  } catch {
-    throw new Error(`模板文件缺失：${meta.file}`);
-  }
+  const source = readTemplateFile(meta.file);
+  if (source === null) throw new Error(`模板文件缺失：${meta.file}`);
+  return { meta, source };
 }
 
 /* ------------------------------------------------------------------ */

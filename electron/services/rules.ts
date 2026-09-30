@@ -7,7 +7,7 @@
 import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
-import { getDataDir } from "../db/database";
+import { builtinDir, userDir, userRoot } from "./dataPaths";
 
 export interface Rule {
   id: string;
@@ -27,17 +27,13 @@ export const DISCLAIMER =
 
 export function builtinRulesDir(): string {
   // 开发态：dist-electron/services → 项目根 resources；打包态：asar 内相对路径一致
-  return path.resolve(__dirname, "../../resources/rules");
+  return builtinDir("rules");
 }
 
 export function userRulesDir(): string {
   // 渲染层/纯 Node 环境下 electron.app 不可用，此时降级为「无用户规则」，
   // 内置规则仍可正常读取（内置目录只依赖 __dirname）。
-  try {
-    return path.join(getDataDir(), "rules");
-  } catch {
-    return "";
-  }
+  return userDir("rules");
 }
 
 function readRuleFile(file: string): Rule[] {
@@ -56,16 +52,34 @@ function listRuleFiles(dir: string): string[] {
   return fs.readdirSync(dir).filter((f) => f.endsWith(".json"));
 }
 
-/** 内置规则 + 用户规则合并（用户规则同 id 覆盖内置） */
+/**
+ * 用户目录下的规则文件分两类，**优先级不同**：
+ *   - 更新落地的规则库（文件名与内置一致，如 `huangli.json`）：只是「内置规则的新版本」，
+ *     优先级低于用户个人覆盖；
+ *   - 用户个人覆盖（`user_<system>.json`，由 saveUserRule 写入）：优先级最高。
+ * 这个区分很重要：否则更新一次之后，概览里每条规则都会被标成「已覆盖」。
+ */
+function readRuleDir(dir: string, prefixFilter: (file: string) => boolean): Rule[] {
+  if (!dir) return [];
+  return listRuleFiles(dir)
+    .filter(prefixFilter)
+    .flatMap((f) => readRuleFile(path.join(dir, f)));
+}
+
+/** 更新落地到用户目录的规则库（非 user_ 前缀） */
+export function readUpdateRules(): Rule[] {
+  return readRuleDir(userRulesDir(), (f) => !f.startsWith("user_"));
+}
+
+/**
+ * 全量规则：内置 → 更新落地规则（覆盖内置）→ 用户个人覆盖（覆盖前两者）。
+ * 三层顺序固定，不依赖 readdir 的字母序。
+ */
 export function listRules(system?: string): Rule[] {
   const map = new Map<string, Rule>();
-  for (const dir of [builtinRulesDir(), userRulesDir()]) {
-    for (const f of listRuleFiles(dir)) {
-      for (const rule of readRuleFile(path.join(dir, f))) {
-        map.set(rule.id, rule);
-      }
-    }
-  }
+  for (const rule of readRuleDir(builtinRulesDir(), () => true)) map.set(rule.id, rule);
+  for (const rule of readUpdateRules()) map.set(rule.id, rule);
+  for (const rule of readRuleDir(userRulesDir(), (f) => f.startsWith("user_"))) map.set(rule.id, rule);
   const all = Array.from(map.values());
   return system ? all.filter((r) => r.system === system) : all;
 }
@@ -172,19 +186,20 @@ function listFiles(dir: string, builtin: boolean): RuleFileView[] {
   });
 }
 
-/** 读取用户规则（未与内置合并），用于判断覆盖关系 */
+/** 读取**用户个人覆盖**（`user_*.json`），不含更新落地的规则库 */
 function readUserRules(): Rule[] {
-  const dir = userRulesDir();
-  if (!dir) return [];
-  return listRuleFiles(dir).flatMap((f) => readRuleFile(path.join(dir, f)));
+  return readRuleDir(userRulesDir(), (f) => f.startsWith("user_"));
 }
 
-/** 规则库概览：内置 / 用户文件清单 + 每条规则的最终状态 */
+/** 规则库概览：内置（含更新落地）/ 用户覆盖文件清单 + 每条规则的最终状态 */
 export function rulesOverview(): RulesOverview {
+  // 「内置」= 打包内置 + 更新落地（后者覆盖前者），两者对用户是同一件事
   const builtin = new Map<string, Rule>();
   for (const f of listRuleFiles(builtinRulesDir())) {
     for (const r of readRuleFile(path.join(builtinRulesDir(), f))) builtin.set(r.id, r);
   }
+  for (const r of readUpdateRules()) builtin.set(r.id, r);
+
   const user = new Map<string, Rule>();
   for (const r of readUserRules()) user.set(r.id, r);
 
@@ -345,6 +360,6 @@ export function appDataSummary(): unknown {
     appVersion: app.getVersion(),
     platform: process.platform,
     userDataDir: app.getPath("userData"),
-    dataDir: getDataDir()
+    dataDir: userRoot() || app.getPath("userData")
   };
 }

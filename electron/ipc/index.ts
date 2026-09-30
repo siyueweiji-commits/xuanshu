@@ -52,13 +52,39 @@ import {
   backtestCsv,
   BacktestRequest
 } from "../services/feedback";
+import {
+  checkUpdate,
+  runUpdate,
+  UpdateOptions,
+  updateLogs,
+  clearUpdateLogs,
+  listBackups,
+  rollback,
+  dropBackup,
+  dataOverview,
+  getUpdateSettings,
+  setUpdateSettings
+} from "../services/updater";
+import { RESOURCE_KINDS, ResourceKind } from "../services/dataPaths";
 
 type Handler = (payload: unknown) => unknown;
+type AsyncHandler = (payload: unknown) => Promise<unknown>;
 
 function handle(channel: string, fn: Handler): void {
   ipcMain.handle(channel, (_event, payload: unknown) => {
     try {
       return { ok: true, data: fn(payload) };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+}
+
+/** 异步通道（网络 / 文件 IO）；错误同样包成信封返回，不让 reject 冒到渲染层 */
+function handleAsync(channel: string, fn: AsyncHandler): void {
+  ipcMain.handle(channel, async (_event, payload: unknown) => {
+    try {
+      return { ok: true, data: await fn(payload) };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
@@ -612,8 +638,53 @@ export function registerIpcHandlers(): void {
     return getDailyFortune(profileId, date);
   });
 
+  /* ---------------- 数据更新（M8） ---------------- */
+
+  handle("update:overview", () => dataOverview());
+  handle("update:settings", () => getUpdateSettings());
+
+  handle("update:set-settings", (payload) => {
+    const o = asObject(payload);
+    const patch: { sourceUrl?: string; autoCheck?: boolean } = {};
+    if (typeof o.sourceUrl === "string") patch.sourceUrl = o.sourceUrl;
+    if (typeof o.autoCheck === "boolean") patch.autoCheck = o.autoCheck;
+    return setUpdateSettings(patch);
+  });
+
+  handleAsync("update:check", (payload) => checkUpdate(str(asObject(payload), "sourceUrl") || undefined));
+
+  handleAsync("update:run", (payload) => {
+    const o = asObject(payload);
+    const opts: UpdateOptions = {};
+    if (o.force === true) opts.force = true;
+    if (o.noBackup === true) opts.noBackup = true;
+    if (Array.isArray(o.only)) {
+      const kinds = (o.only as unknown[]).filter((k): k is ResourceKind =>
+        typeof k === "string" && (RESOURCE_KINDS as string[]).includes(k)
+      );
+      if (kinds.length) opts.only = kinds;
+    }
+    return runUpdate(str(o, "sourceUrl") || undefined, opts);
+  });
+
+  handle("update:logs", (payload) => updateLogs(maybeNum(asObject(payload), "limit") ?? 50));
+  handle("update:clear-logs", () => ({ removed: clearUpdateLogs() }));
+  handle("update:backups", () => listBackups());
+
+  handle("update:rollback", (payload) => {
+    const name = str(asObject(payload), "backup") || undefined;
+    return rollback(name);
+  });
+
+  handle("update:drop-backup", (payload) => {
+    const name = str(asObject(payload), "backup");
+    if (!name) throw new Error("缺少备份名称");
+    return { dropped: dropBackup(name) };
+  });
+
   // 导出命盘图片：渲染进程用 canvas 生成 PNG 的 dataURL，这里负责落盘
-  handle("export:image", (payload) => {    const o = asObject(payload);
+  handle("export:image", (payload) => {
+    const o = asObject(payload);
     const dataUrl = str(o, "dataUrl");
     const prefix = "data:image/png;base64,";
     if (!dataUrl.startsWith(prefix)) {

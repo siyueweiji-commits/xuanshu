@@ -93,7 +93,15 @@ const PAGES = [
     click: "生成报告"
   },
   { key: "feedback", hash: "#/feedback", title: "反馈与回测", click: "开始回测" },
-  { key: "settings", hash: "#/settings", title: "设置" }
+  { key: "settings", hash: "#/settings", title: "设置" },
+  {
+    key: "settings-update",
+    hash: "#/settings",
+    title: "设置·数据更新",
+    focus: "#data-update",
+    pre: `(() => { const b = [...document.querySelectorAll("button")].find(x => x.textContent.trim() === "检查更新"); b && b.click(); return "ok"; })()`,
+    click: null
+  }
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -186,16 +194,31 @@ async function main() {
     // 窗口尺寸全程固定，靠滚动 main 逐屏截图（改尺寸会让合成器出陈旧帧）
     const metrics = await win.webContents
       .executeJavaScript(
-        `(() => { const m = document.querySelector("main");
-           return m ? { height: Math.ceil(m.scrollHeight), viewport: m.clientHeight } : { height: 0, viewport: 0 }; })()`
+        `(() => {
+           const m = document.querySelector("main");
+           if (!m) return { height: 0, viewport: 0, focusTop: 0 };
+           let focusTop = 0;
+           const sel = ${JSON.stringify(page.focus ?? null)};
+           if (sel) {
+             const el = document.querySelector(sel);
+             if (el) {
+               const mr = m.getBoundingClientRect();
+               const er = el.getBoundingClientRect();
+               focusTop = Math.max(0, Math.floor(er.top - mr.top + m.scrollTop) - 8);
+             }
+           }
+           return { height: Math.ceil(m.scrollHeight), viewport: m.clientHeight, focusTop };
+         })()`
       )
-      .catch(() => ({ height: 0, viewport: 0 }));
+      .catch(() => ({ height: 0, viewport: 0, focusTop: 0 }));
 
-    const strips = Math.max(1, Math.min(Math.ceil(metrics.height / Math.max(metrics.viewport, 1)), MAX_STRIPS));
+    const base = metrics.focusTop || 0;
+    const remain = Math.max(metrics.height - base, 1);
+    const strips = Math.max(1, Math.min(Math.ceil(remain / Math.max(metrics.viewport, 1)), MAX_STRIPS));
     const files = [];
     for (let i = 0; i < strips; i += 1) {
       await win.webContents
-        .executeJavaScript(`document.querySelector("main").scrollTop = ${i * metrics.viewport}; void 0;`)
+        .executeJavaScript(`document.querySelector("main").scrollTop = ${base + i * metrics.viewport}; void 0;`)
         .catch(() => {});
       const file = i === 0 ? `${page.key}.png` : `${page.key}-${i + 1}.png`;
       await shoot(win, path.join(OUT, file));

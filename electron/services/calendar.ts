@@ -12,6 +12,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Solar } from "lunar-typescript";
+import { resolveResource } from "./dataPaths";
 
 export interface CityInfo {
   name: string;
@@ -91,9 +92,9 @@ export function hourToTimeIndex(hour: number): number {
   return Math.floor((hour + 1) / 2);
 }
 
-/** 城市经纬度数据文件路径（开发态 dist-electron/services → 项目根 resources） */
+/** 城市经纬度数据文件路径（用户目录优先，其次内置） */
 export function cityDataFile(): string {
-  return path.resolve(__dirname, "../../resources/data/city_coords.json");
+  return resolveResource("data", "city_coords.json") ?? path.resolve(__dirname, "../../resources/data/city_coords.json");
 }
 
 let cityCache: CityInfo[] | null = null;

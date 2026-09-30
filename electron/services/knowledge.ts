@@ -6,6 +6,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { builtinDir, resolveResource } from "./dataPaths";
 
 export interface StarInfo {
   name: string;
@@ -15,7 +16,18 @@ export interface StarInfo {
 }
 
 export function builtinKnowledgeDir(): string {
-  return path.resolve(__dirname, "../../resources/knowledge");
+  return builtinDir("knowledge");
+}
+
+/** 读取知识库文件：用户目录优先（更新落地），其次内置 */
+function readKnowledgeFile(file: string): string | null {
+  const p = resolveResource("knowledge", file);
+  if (!p) return null;
+  try {
+    return fs.readFileSync(p, "utf-8");
+  } catch {
+    return null;
+  }
 }
 
 interface StarFile {
@@ -29,9 +41,9 @@ function loadStars(): Map<string, StarInfo> {
   if (starCache) return starCache;
   const map = new Map<string, StarInfo>();
   try {
-    const file = path.join(builtinKnowledgeDir(), "stars.json");
-    const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as StarFile;
-    for (const s of parsed.stars ?? []) {
+    const raw = readKnowledgeFile("stars.json");
+    const parsed = raw ? (JSON.parse(raw) as StarFile) : null;
+    for (const s of parsed?.stars ?? []) {
       if (s && typeof s.name === "string") map.set(s.name, s);
     }
   } catch {
@@ -83,9 +95,9 @@ function loadGua(): Map<string, GuaInfo> {
   if (guaCache) return guaCache;
   const map = new Map<string, GuaInfo>();
   try {
-    const file = path.join(builtinKnowledgeDir(), "gua.json");
-    const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as GuaFile;
-    for (const g of parsed.hexagrams ?? []) {
+    const raw = readKnowledgeFile("gua.json");
+    const parsed = raw ? (JSON.parse(raw) as GuaFile) : null;
+    for (const g of parsed?.hexagrams ?? []) {
       if (g && typeof g.name === "string") map.set(g.name, g);
     }
   } catch {

@@ -3,7 +3,8 @@ dist/
 dist-electron/
 release/
 .uishot/
-.verify-userdata/
+# 各 milestone 校验脚本的隔离用户目录（.verify-userdata / -m7 / -m8 …）
+.verify-userdata*/
 .tmp-*
 *.log
 .DS_Store

@@ -103,8 +103,12 @@ app.whenReady().then(async () => {
   await new Promise((r) => setTimeout(r, 900));
 
   // 4) 走真实 preload + 真实 IPC 拉一轮数据
+  //    注意：下面这段是**注入到渲染层执行的字符串**，里面不能出现反引号或 ${}，
+  //    否则会截断外层模板字符串（踩过一次），一律用字符串拼接。
+  const NO_SOURCE_DIR = path.join(ROOT, ".no-such-update-source");
   const probe = await win.webContents
     .executeJavaScript(`(async () => {
+      const NO_SOURCE_DIR = ${JSON.stringify(NO_SOURCE_DIR)};
       const out = {};
       const call = async (ch, p) => { try { return await window.xuanshu.invoke(ch, p); } catch (e) { return { ok:false, error:String(e) }; } };
       out.profiles = (await call("profile:list")).ok;
@@ -259,6 +263,44 @@ app.whenReady().then(async () => {
       out.meihuaInvalidRejected = bad.ok === false;
       const bad2 = await call("divination:liuyao", { mode: "manual", manualLines: [{ value: 1 }] });
       out.liuyaoInvalidRejected = bad2.ok === false;
+
+      // M7 反馈与回测（只读探测 + 一次可回收的写入）
+      const ft = await call("feedback:types");
+      out.feedbackTypes = ft.ok ? ft.data.map((t) => t.key).join(",") : ft.error;
+      const fc = await call("feedback:create", { date: "2026-09-30", eventType: "好事", description: "端到端探测" });
+      const fid = fc.ok ? fc.data.id : null;
+      out.feedbackCreate = fc.ok ? "id=" + fid + " group=" + fc.data.group : fc.error;
+      const fl = await call("feedback:list", { limit: 5 });
+      out.feedbackList = fl.ok
+        ? fl.data.length + " 条 / Top1=" + (fl.data[0] ? fl.data[0].date + " " + fl.data[0].event_type : "-")
+        : fl.error;
+      const bt = await call("feedback:backtest", { dateFrom: "2026-09-28", dateTo: "2026-09-30" });
+      out.feedbackBacktest = bt.ok
+        ? bt.data.summary.days + " 天 / 计分 " + bt.data.summary.scoredEvents +
+          " / 命中 " + bt.data.summary.hitEvents +
+          " / 率 " + (bt.data.summary.hitRate * 100).toFixed(0) + "%"
+        : bt.error;
+      if (fid) await call("feedback:delete", { id: fid });
+      out.feedbackCleanup = fid ? "已删除探测记录" : "-";
+
+      // M8 数据更新（只读探测 + 设置项往返；不做真实更新，避免污染真实用户目录）
+      const uo = await call("update:overview");
+      out.updateOverview = uo.ok
+        ? "版本 " + uo.data.version + " / 自动检查 " + uo.data.autoCheck +
+          " / 资源 " + uo.data.kinds.map((k) => k.kind + ":" + k.builtin).join(",")
+        : uo.error;
+      const us0 = await call("update:settings");
+      const us1 = await call("update:set-settings", { autoCheck: false });
+      const us2 = await call("update:set-settings", { autoCheck: us0.ok ? us0.data.autoCheck : true });
+      out.updateSettings = us1.ok && us2.ok ? "读写往返正常（autoCheck=" + us2.data.autoCheck + "）" : "FAIL";
+      const uc = await call("update:check", { sourceUrl: NO_SOURCE_DIR });
+      out.updateCheckOffline = uc.ok && uc.data && uc.data.ok === false && uc.data.error
+        ? "离线优雅降级：" + uc.data.error
+        : "FAIL";
+      const ub = await call("update:backups");
+      out.updateBackups = ub.ok ? ub.data.length + " 个快照" : ub.error;
+      const ul = await call("update:logs", { limit: 5 });
+      out.updateLogs = ul.ok ? ul.data.length + " 条日志" : ul.error;
       return out;
     })()`)
     .catch((e) => ({ probeError: String(e) }));
