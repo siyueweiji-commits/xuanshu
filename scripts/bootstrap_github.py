@@ -38,8 +38,10 @@ Personal access tokens -> Tokens(classic) -> Generate new token，勾选 `repo`�
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
+import shutil
 import subprocess
 import sys
 import urllib.error
@@ -394,7 +396,8 @@ def run(cmd: list[str], cwd: Path | None = None) -> tuple[int, str]:
         return 127, f"命令不存在: {cmd[0]}"
 
 
-def api(token: str, method: str, path: str, payload: dict | None = None) -> tuple[int, object]:
+def api(token: str, method: str, path: str, payload: dict | None = None,
+        timeout: int = 30) -> tuple[int, object]:
     """调用 GitHub REST API。"""
     url = f"{API}{path}"
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
@@ -406,7 +409,7 @@ def api(token: str, method: str, path: str, payload: dict | None = None) -> tupl
     if data:
         req.add_header("Content-Type", "application/json")
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             body = resp.read().decode("utf-8")
             return resp.status, (json.loads(body) if body else {})
     except urllib.error.HTTPError as e:
@@ -423,11 +426,32 @@ def api(token: str, method: str, path: str, payload: dict | None = None) -> tupl
 # --------------------------------------------------------------------------
 # 步骤 1：推送仓库
 # --------------------------------------------------------------------------
-def push_repo(name: str, path: Path, token: str) -> bool:
-    if not (path / ".git").is_dir():
-        print(f"[!] {name}: 不是 git 仓库，跳过（{path}）")
-        return False
+# 推送时需要排除的构建产物/依赖（等价于 .gitignore 的核心规则）
+EXCLUDE_DIRS = {
+    ".git", "node_modules", "dist", "dist-electron", "release",
+    "__pycache__", ".idea", ".vscode", ".pytest_cache",
+}
+EXCLUDE_SUFFIXES = (".log", ".pyc", ".pyo")
+EXCLUDE_NAMES = {".env", ".env.local", ".DS_Store", "Thumbs.db"}
 
+
+def collect_files(root: Path) -> list[Path]:
+    """收集要推送的文件（相当于 git ls-files，用于无 git 环境下的 API 推送）。"""
+    picked: list[Path] = []
+    for p in sorted(root.rglob("*")):
+        if not p.is_file():
+            continue
+        parts = p.relative_to(root).parts
+        if any(seg in EXCLUDE_DIRS for seg in parts[:-1]):
+            continue
+        if p.name in EXCLUDE_NAMES or p.suffix.lower() in EXCLUDE_SUFFIXES:
+            continue
+        picked.append(p)
+    return picked
+
+
+def push_via_git(name: str, path: Path, token: str) -> bool:
+    """用本地 git 推送（可保留完整提交历史）。"""
     code, out = run(["git", "-C", str(path), "rev-parse", "--abbrev-ref", "HEAD"])
     if code != 0:
         print(f"[!] {name}: 无法读取分支 — {out.strip()[:200]}")
@@ -440,16 +464,153 @@ def push_repo(name: str, path: Path, token: str) -> bool:
         return False
 
     remote_url = f"https://{OWNER}:{token}@github.com/{OWNER}/{name}.git"
-    info(f"{name}: 推送 {branch} 分支 ...")
+    info(f"{name}: 用 git 推送 {branch} 分支 ...")
     code, out = run(["git", "-C", str(path), "push", "--quiet", remote_url, f"HEAD:refs/heads/{branch}"])
 
-    # 输出里可能带 token，做一次脱敏
-    safe = out.replace(token, "***")
+    # 远程与本地历史不一致时（比如之前用 API 推过），用 force 覆盖
+    if code != 0 and any(k in out for k in ("rejected", "fetch first", "non-fast-forward")):
+        info(f"{name}: 远程分支与本地不一致，改用 force 覆盖 ...")
+        code, out = run(["git", "-C", str(path), "push", "--quiet", "--force",
+                         remote_url, f"HEAD:refs/heads/{branch}"])
+
+    safe = out.replace(token, "***")           # 输出里可能带 token，脱敏
     if code == 0:
-        ok(f"{name}: 推送成功")
+        ok(f"{name}: 推送成功（保留完整提交历史）")
         return True
-    print(f"[×] {name}: 推送失败\n{safe.strip()[:600]}")
+
+    if "workflow" in safe and "scope" in safe:
+        print(f"\n[!] {name}: 推送被拒 —— PAT 缺少 `workflow` 权限。")
+        print("    项目含 .github/workflows/ 文件，GitHub 要求 PAT 必须勾选 `workflow` scope。")
+        print("    → 打开 https://github.com/settings/tokens 重新生成，勾选 `repo` + `workflow` 两项。\n")
+        return False
+
+    print(f"[!] {name}: git 推送失败\n{safe.strip()[:500]}")
     return False
+
+
+def push_via_api(name: str, root: Path, token: str) -> bool:
+    """用 GitHub REST API 推送（不依赖本地 git 是否安装）。"""
+    files = collect_files(root)
+    if not files:
+        print(f"[!] {name}: 没有找到可推送的文件（{root}）")
+        return False
+
+    info(f"{name}: 通过 GitHub API 推送 {len(files)} 个文件 ...")
+
+    # 探测仓库是否为空；空仓库必须先落地一个文件，否则 Git Data API 会返回 409
+    parents: list[str] = []
+    base_tree: str | None = None
+    code, ref = api(token, "GET", f"/repos/{OWNER}/{name}/git/ref/heads/{BRANCH}")
+    if code == 200 and isinstance(ref, dict) and isinstance(ref.get("object"), dict):
+        parents = [str(ref["object"]["sha"])]
+        code2, head = api(token, "GET", f"/repos/{OWNER}/{name}/git/commits/{parents[0]}")
+        if code2 == 200 and isinstance(head, dict) and isinstance(head.get("tree"), dict):
+            base_tree = str(head["tree"]["sha"])
+    elif code in (404, 409):
+        seed = next((f for f in files if f.name.lower() == "readme.md"), files[0])
+        seed_rel = seed.relative_to(root).as_posix()
+        info(f"{name}: 仓库为空，先用 Contents API 初始化 {seed_rel} ...")
+        code_i, resp = api(
+            token, "PUT", f"/repos/{OWNER}/{name}/contents/{seed_rel}",
+            {"message": "chore: 初始化仓库",
+             "content": base64.b64encode(seed.read_bytes()).decode("ascii")},
+        )
+        if code_i not in (200, 201) or not isinstance(resp, dict) or "commit" not in resp:
+            msg = resp.get("message") if isinstance(resp, dict) else resp
+            print(f"[×] {name}: 初始化失败（HTTP {code_i}）：{msg}")
+            return False
+        parents = [str(resp["commit"]["sha"])]
+        base_tree = str(resp["commit"]["tree"]["sha"])
+        ok(f"{name}: 初始化完成，继续推送其余文件")
+    else:
+        msg = ref.get("message") if isinstance(ref, dict) else ref
+        print(f"[!] {name}: 读取分支失败（HTTP {code}）：{msg}（按空仓库继续）")
+
+    # 1) 逐个上传文件 blob（大文件耗时较长，失败自动重试 3 次）
+    tree_items: list[dict[str, str]] = []
+    for idx, f in enumerate(files, 1):
+        rel = f.relative_to(root).as_posix()
+        b64 = base64.b64encode(f.read_bytes()).decode("ascii")
+        blob: dict | None = None
+        for attempt in range(1, 4):
+            code, resp = api(token, "POST", f"/repos/{OWNER}/{name}/git/blobs",
+                             {"content": b64, "encoding": "base64"}, timeout=180)
+            if code == 201 and isinstance(resp, dict) and "sha" in resp:
+                blob = resp
+                break
+            msg = resp.get("message") if isinstance(resp, dict) else resp
+            print(f"    [!] {rel} 第 {attempt}/3 次失败（HTTP {code}）：{msg}")
+        if blob is None:
+            print(f"[×] {name}: 上传 {rel} 失败（已重试 3 次）")
+            return False
+        tree_items.append({"path": rel, "mode": "100644", "type": "blob", "sha": str(blob["sha"])})
+        if idx % 10 == 0 or idx == len(files):
+            print(f"    已上传 {idx}/{len(files)}")
+
+    # 2) 组装 tree（带 base_tree 时，未列出的已有文件会被保留）
+    tree_payload: dict[str, object] = {"tree": tree_items}
+    if base_tree:
+        tree_payload["base_tree"] = base_tree
+    code, tree = api(token, "POST", f"/repos/{OWNER}/{name}/git/trees", tree_payload, timeout=120)
+    if code != 201 and base_tree:
+        msg = tree.get("message") if isinstance(tree, dict) else tree
+        print(f"[!] {name}: 带 base_tree 建 tree 失败（HTTP {code}：{msg}），改用完整 tree 重试")
+        code, tree = api(token, "POST", f"/repos/{OWNER}/{name}/git/trees",
+                         {"tree": tree_items}, timeout=120)
+    if code != 201 or not isinstance(tree, dict) or "sha" not in tree:
+        msg = tree.get("message") if isinstance(tree, dict) else tree
+        print(f"[×] {name}: 创建 tree 失败（HTTP {code}）：{msg}")
+        if code == 404:
+            print("    提示：项目含 .github/workflows/ 文件时，GitHub 会因 PAT 缺少 `workflow`")
+            print("    scope 而把权限错误伪装成 404。请重新生成 PAT，同时勾选 repo + workflow。")
+        return False
+
+    # 3) 创建 commit
+    payload: dict[str, object] = {
+        "message": "chore: 从本地仓库同步玄枢项目文件",
+        "tree": tree["sha"],
+    }
+    if parents:
+        payload["parents"] = parents
+    code, commit = api(token, "POST", f"/repos/{OWNER}/{name}/git/commits", payload)
+    if code != 201 or not isinstance(commit, dict) or "sha" not in commit:
+        msg = commit.get("message") if isinstance(commit, dict) else commit
+        print(f"[×] {name}: 创建 commit 失败（HTTP {code}）：{msg}")
+        return False
+
+    # 4) 创建或更新分支引用
+    if parents:
+        code, resp = api(token, "PATCH", f"/repos/{OWNER}/{name}/git/refs/heads/{BRANCH}",
+                         {"sha": commit["sha"], "force": True})
+        action = "更新"
+    else:
+        code, resp = api(token, "POST", f"/repos/{OWNER}/{name}/git/refs",
+                         {"ref": f"refs/heads/{BRANCH}", "sha": commit["sha"]})
+        action = "创建"
+
+    if code in (200, 201):
+        ok(f"{name}: {action}分支 {BRANCH} 成功（commit {str(commit['sha'])[:7]}）")
+        return True
+    msg = resp.get("message") if isinstance(resp, dict) else resp
+    print(f"[×] {name}: {action}分支失败（HTTP {code}）：{msg}")
+    return False
+
+
+def push_repo(name: str, path: Path, token: str) -> bool:
+    """优先用 git（保留历史）；git 不可用或失败时，自动降级为 API 推送。"""
+    if not path.is_dir():
+        print(f"[!] {name}: 目录不存在，跳过（{path}）")
+        return False
+
+    has_git = shutil.which("git") is not None and (path / ".git").is_dir()
+    if has_git and push_via_git(name, path, token):
+        return True
+    if has_git:
+        print(f"[!] {name}: 改用 API 方式重试 ...")
+    else:
+        info(f"{name}: 未检测到 git，改用 GitHub API 推送")
+
+    return push_via_api(name, path, token)
 
 
 # --------------------------------------------------------------------------
