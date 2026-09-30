@@ -255,3 +255,83 @@ export function toTrueSolarTime(req: TrueSolarRequest): TrueSolarResult {
     note: "真太阳时 = 钟表时间 + 经度时差 + 均时差；用于校准时柱。"
   };
 }
+
+/** 时辰索引 → 该时辰的代表小时（供真太阳时校正当输入用） */
+export function timeIndexToHour(timeIndex: number): number {
+  if (timeIndex <= 0) return 0;
+  if (timeIndex >= 12) return 23;
+  return timeIndex * 2 - 1;
+}
+
+export interface BirthTimeInput extends CalendarRequest {
+  /** 出生地城市名（查 city_coords.json） */
+  city?: string;
+  /** 或直接给经度，优先级高于 city */
+  longitude?: number;
+  /** 是否启用真太阳时校正 */
+  useTrueSolar?: boolean;
+  /** 亦可直接给时辰索引（紫微表单用），内部换算为小时 */
+  timeIndex?: number;
+}
+
+export interface ResolvedBirthTime {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  timeIndex: number;
+  /** 是否真正执行了校正 */
+  applied: boolean;
+  /** 校正明细，未校正时为 null */
+  detail: TrueSolarResult | null;
+}
+
+/**
+ * 解析出生时间，可选地应用真太阳时校正。
+ *
+ * - 未启用真太阳时、或既没给城市也没给经度时：原样返回，`applied = false`
+ * - 紫微表单只给 `timeIndex` 时：先用 `timeIndexToHour` 还原代表小时再校正
+ * - 校正可能跨日（如乌鲁木齐 00:10 → 前一日 22:11），日期会一并回填
+ */
+export function resolveBirthTime(req: BirthTimeInput): ResolvedBirthTime {
+  const rawTimeIndex = Number.isFinite(req.timeIndex) ? (req.timeIndex as number) : null;
+  const hour = Number.isFinite(req.hour)
+    ? (req.hour as number)
+    : rawTimeIndex !== null
+      ? timeIndexToHour(rawTimeIndex)
+      : 0;
+  const minute = Number.isFinite(req.minute) ? (req.minute as number) : 0;
+
+  const hasLongitude = typeof req.longitude === "number" && Number.isFinite(req.longitude);
+  const canApply = req.useTrueSolar === true && (hasLongitude || Boolean(req.city));
+
+  if (!canApply) {
+    return {
+      year: req.year,
+      month: req.month,
+      day: req.day,
+      hour,
+      minute,
+      timeIndex: rawTimeIndex !== null ? rawTimeIndex : hourToTimeIndex(hour),
+      applied: false,
+      detail: null
+    };
+  }
+
+  const detail = toTrueSolarTime({ ...req, hour, minute });
+  const [datePart, timePart] = detail.trueSolarTime.split(" ");
+  const [y, m, d] = datePart.split("-").map(Number);
+  const [hh, mm] = timePart.split(":").map(Number);
+
+  return {
+    year: y,
+    month: m,
+    day: d,
+    hour: hh,
+    minute: mm,
+    timeIndex: hourToTimeIndex(hh),
+    applied: true,
+    detail
+  };
+}

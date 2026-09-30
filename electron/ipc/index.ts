@@ -1,7 +1,17 @@
-import { ipcMain } from "electron";
+import { app, ipcMain } from "electron";
+import fs from "node:fs";
+import path from "node:path";
 import { getDb } from "../db/database";
 import { calcZiwei, calcZiweiHoroscope, ZiweiRequest, ZiweiHoroscopeRequest } from "../services/ziwei";
-import { convertCalendar, toTrueSolarTime, listCities, TrueSolarRequest } from "../services/calendar";
+import {
+  convertCalendar,
+  toTrueSolarTime,
+  listCities,
+  resolveBirthTime,
+  SHICHEN_NAMES,
+  TrueSolarRequest,
+  ResolvedBirthTime
+} from "../services/calendar";
 import { calcBazi, BaziRequest } from "../services/bazi";
 import { shijianQigua, shuziQigua } from "../services/meihua";
 import { qigua } from "../services/liuyao";
@@ -32,6 +42,36 @@ function num(o: Record<string, unknown>, key: string, fallback = 0): number {
 function str(o: Record<string, unknown>, key: string, fallback = ""): string {
   const v = o[key];
   return typeof v === "string" ? v : fallback;
+}
+
+/** 从 IPC payload 读取出生时间 + 真太阳时相关参数 */
+function birthInput(o: Record<string, unknown>): Parameters<typeof resolveBirthTime>[0] {
+  const input: Parameters<typeof resolveBirthTime>[0] = {
+    year: num(o, "year"),
+    month: num(o, "month"),
+    day: num(o, "day"),
+    city: str(o, "city") || undefined,
+    useTrueSolar: o.useTrueSolar === true
+  };
+  if (typeof o.hour === "number" && Number.isFinite(o.hour)) input.hour = o.hour;
+  if (typeof o.minute === "number" && Number.isFinite(o.minute)) input.minute = o.minute;
+  if (typeof o.timeIndex === "number" && Number.isFinite(o.timeIndex)) input.timeIndex = o.timeIndex;
+  if (typeof o.longitude === "number" && Number.isFinite(o.longitude)) input.longitude = o.longitude;
+  return input;
+}
+
+/** 把出生时间解析结果压成给前端展示的元信息 */
+function birthMeta(b: ResolvedBirthTime) {
+  return {
+    applied: b.applied,
+    clockTime: b.detail?.clockTime ?? null,
+    trueSolarTime: b.detail?.trueSolarTime ?? null,
+    offsetMinutes: b.detail?.totalOffsetMinutes ?? null,
+    longitude: b.detail?.longitude ?? null,
+    cityName: b.detail?.cityName ?? null,
+    timeIndex: b.timeIndex,
+    timeName: SHICHEN_NAMES[b.timeIndex]
+  };
 }
 
 export function registerIpcHandlers(): void {
@@ -66,39 +106,49 @@ export function registerIpcHandlers(): void {
   // 排盘
   handle("chart:ziwei", (payload) => {
     const o = asObject(payload);
+    const birth = resolveBirthTime(birthInput(o));
     const req: ZiweiRequest = {
       gender: str(o, "gender", "男"),
-      year: num(o, "year"),
-      month: num(o, "month"),
-      day: num(o, "day"),
-      timeIndex: num(o, "timeIndex"),
+      year: birth.year,
+      month: birth.month,
+      day: birth.day,
+      timeIndex: birth.timeIndex,
       calendar: str(o, "calendar", "solar") === "lunar" ? "lunar" : "solar"
     };
-    return calcZiwei(req);
+    return {
+      ...(calcZiwei(req) as Record<string, unknown>),
+      meta: { birth: birthMeta(birth) }
+    };
   });
 
   handle("chart:bazi", (payload) => {
     const o = asObject(payload);
+    const birth = resolveBirthTime(birthInput(o));
     const req: BaziRequest = {
       gender: str(o, "gender", "男"),
-      year: num(o, "year"),
-      month: num(o, "month"),
-      day: num(o, "day"),
-      hour: num(o, "hour"),
-      minute: num(o, "minute")
+      year: birth.year,
+      month: birth.month,
+      day: birth.day,
+      hour: birth.hour,
+      minute: birth.minute
     };
-    return calcBazi(req);
+    return {
+      ...(calcBazi(req) as Record<string, unknown>),
+      meta: { birth: birthMeta(birth) }
+    };
   });
 
   // 紫微运限（M2）：大限 / 流年 / 流月 / 流日 / 流时
   handle("chart:ziwei-horoscope", (payload) => {
     const o = asObject(payload);
+    // 本命时间同样走真太阳时解析，保证与本命盘一致
+    const birth = resolveBirthTime(birthInput(o));
     const req: ZiweiHoroscopeRequest = {
       gender: str(o, "gender", "男"),
-      year: num(o, "year"),
-      month: num(o, "month"),
-      day: num(o, "day"),
-      timeIndex: num(o, "timeIndex"),
+      year: birth.year,
+      month: birth.month,
+      day: birth.day,
+      timeIndex: birth.timeIndex,
       calendar: str(o, "calendar", "solar") === "lunar" ? "lunar" : "solar",
       targetYear: num(o, "targetYear"),
       targetMonth: num(o, "targetMonth"),
@@ -178,5 +228,27 @@ export function registerIpcHandlers(): void {
     };
     const advice = matchRules(listRules(), facts).map((r) => r.advice);
     return { huangli, advice, disclaimer: DISCLAIMER };
+  });
+
+  // 导出命盘图片：渲染进程用 canvas 生成 PNG 的 dataURL，这里负责落盘
+  handle("export:image", (payload) => {
+    const o = asObject(payload);
+    const dataUrl = str(o, "dataUrl");
+    const prefix = "data:image/png;base64,";
+    if (!dataUrl.startsWith(prefix)) {
+      throw new Error("导出数据无效：需要 data:image/png;base64 形式的图片");
+    }
+    const base64 = dataUrl.slice(prefix.length);
+    if (!base64) throw new Error("导出数据为空");
+
+    const safeName = str(o, "fileName", "xuanshu-chart").replace(/[\\/:*?"<>|\s]+/g, "_");
+    const dir = path.join(app.getPath("pictures"), "XuanShu");
+    fs.mkdirSync(dir, { recursive: true });
+
+    const stamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+    const file = path.join(dir, `${safeName}-${stamp}.png`);
+    fs.writeFileSync(file, Buffer.from(base64, "base64"));
+
+    return { saved: true, path: file, dir };
   });
 }

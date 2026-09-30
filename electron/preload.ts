@@ -8,7 +8,8 @@ const ALLOWED_CHANNELS = [
   /^chart:/,
   /^divination:/,
   /^rules:/,
-  /^daily:/
+  /^daily:/,
+  /^export:/
 ];
 
 contextBridge.exposeInMainWorld("xuanshu", {

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ipc } from "../lib/ipc";
+import { chartToPngDataUrl } from "../lib/chartImage";
 
 const SHICHEN = [
   "早子时 00:00-01:00", "丑时 01:00-03:00", "寅时 03:00-05:00", "卯时 05:00-07:00",
@@ -17,6 +18,17 @@ interface Palace {
   minorStars: Array<{ name: string }>;
 }
 
+interface BirthMeta {
+  applied: boolean;
+  clockTime: string | null;
+  trueSolarTime: string | null;
+  offsetMinutes: number | null;
+  longitude: number | null;
+  cityName: string | null;
+  timeIndex: number;
+  timeName: string;
+}
+
 interface ZiweiChart {
   solarDate: string;
   lunarDate: string;
@@ -25,6 +37,7 @@ interface ZiweiChart {
   body: string;
   fiveElementsClass: string;
   palaces: Palace[];
+  meta?: { birth: BirthMeta };
 }
 
 interface HoroscopeScope {
@@ -60,6 +73,12 @@ interface ZiweiHoroscope {
   disclaimer: string;
 }
 
+interface CityInfo {
+  name: string;
+  province: string;
+  longitude: number;
+}
+
 const SCOPES = [
   { key: "decadal", label: "大限", accent: "bg-amber-50 border-amber-200" },
   { key: "yearly", label: "流年", accent: "bg-sky-50 border-sky-200" },
@@ -77,18 +96,39 @@ export default function ZiWei() {
     month: today.getMonth() + 1,
     day: today.getDate()
   });
+  const [useTrueSolar, setUseTrueSolar] = useState(false);
+  const [city, setCity] = useState("孝感");
+  const [cities, setCities] = useState<CityInfo[]>([]);
   const [chart, setChart] = useState<ZiweiChart | null>(null);
   const [horoscope, setHoroscope] = useState<ZiweiHoroscope | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportMsg, setExportMsg] = useState("");
+
+  useEffect(() => {
+    void ipc<CityInfo[]>("calendar:cities")
+      .then(setCities)
+      .catch(() => setCities([]));
+  }, []);
+
+  /** 统一的排盘入参（含真太阳时设置） */
+  function payload() {
+    return {
+      ...form,
+      city: useTrueSolar ? city : undefined,
+      useTrueSolar
+    };
+  }
 
   async function paiPan() {
     setError("");
     setChart(null);
     setHoroscope(null);
+    setExportMsg("");
     setLoading(true);
     try {
-      const c = await ipc<ZiweiChart>("chart:ziwei", form);
+      const c = await ipc<ZiweiChart>("chart:ziwei", payload());
       setChart(c);
       await loadHoroscope();
     } catch (e) {
@@ -101,7 +141,7 @@ export default function ZiWei() {
   async function loadHoroscope() {
     try {
       const h = await ipc<ZiweiHoroscope>("chart:ziwei-horoscope", {
-        ...form,
+        ...payload(),
         targetYear: target.year,
         targetMonth: target.month,
         targetDay: target.day
@@ -112,7 +152,26 @@ export default function ZiWei() {
     }
   }
 
+  async function exportImage() {
+    if (!chart) return;
+    setExporting(true);
+    setExportMsg("");
+    try {
+      const dataUrl = chartToPngDataUrl(chart, 2);
+      const res = await ipc<{ saved: boolean; path: string }>("export:image", {
+        dataUrl,
+        fileName: `紫微命盘-${chart.solarDate}`
+      });
+      setExportMsg(`已保存：${res.path}`);
+    } catch (e) {
+      setExportMsg(`导出失败：${String(e)}`);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const inputCls = "rounded-lg border border-neutral-300 px-3 py-2 text-sm";
+  const birth = chart?.meta?.birth;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -137,6 +196,25 @@ export default function ZiWei() {
             ))}
           </select>
         </div>
+
+        {/* 真太阳时 */}
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+          <label className="flex items-center gap-2 text-neutral-600">
+            <input type="checkbox" checked={useTrueSolar}
+              onChange={(e) => setUseTrueSolar(e.target.checked)} />
+            启用真太阳时校正
+          </label>
+          <select className={`${inputCls} disabled:opacity-40`} value={city} disabled={!useTrueSolar}
+            onChange={(e) => setCity(e.target.value)}>
+            {cities.map((c) => (
+              <option key={c.name} value={c.name}>{c.name}（{c.longitude}°E）</option>
+            ))}
+          </select>
+          <span className="text-xs text-neutral-400">
+            按出生地经度 + 均时差校正时柱（可能跨日）
+          </span>
+        </div>
+
         <button
           className="mt-4 rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700 disabled:opacity-50"
           onClick={() => void paiPan()} disabled={loading}>
@@ -148,10 +226,31 @@ export default function ZiWei() {
       {chart && (
         <section className="space-y-4">
           <div className="rounded-2xl bg-white p-5 text-sm shadow-sm">
-            <p>公历：{chart.solarDate}｜农历：{chart.lunarDate}｜干支：{chart.chineseDate}</p>
-            <p className="mt-1">
-              命主：{chart.soul}｜身主：{chart.body}｜五行局：{chart.fiveElementsClass}
-            </p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p>公历：{chart.solarDate}｜农历：{chart.lunarDate}｜干支：{chart.chineseDate}</p>
+                <p className="mt-1">
+                  命主：{chart.soul}｜身主：{chart.body}｜五行局：{chart.fiveElementsClass}
+                </p>
+                {birth?.applied && birth.trueSolarTime && (
+                  <p className="mt-2 text-xs text-amber-700">
+                    真太阳时校正：{birth.clockTime} → {birth.trueSolarTime}
+                    {birth.cityName ? `（${birth.cityName} ${birth.longitude}°E）` : ""}
+                    ，偏移 {birth.offsetMinutes} 分钟，时柱按「{birth.timeName}」计
+                  </p>
+                )}
+              </div>
+              <button
+                className="shrink-0 rounded-lg border border-neutral-300 px-3 py-1.5 text-xs text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                onClick={() => void exportImage()} disabled={exporting}>
+                {exporting ? "导出中…" : "导出命盘图片"}
+              </button>
+            </div>
+            {exportMsg && (
+              <p className={`mt-2 break-all text-xs ${exportMsg.startsWith("已保存") ? "text-emerald-600" : "text-red-500"}`}>
+                {exportMsg}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -183,7 +282,7 @@ export default function ZiWei() {
             ))}
           </div>
 
-          {/* 运限（M2） */}
+          {/* 运限 */}
           <div className="rounded-2xl bg-white p-5 shadow-sm">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-neutral-500">运限</h3>
