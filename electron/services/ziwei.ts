@@ -15,7 +15,8 @@ export function calcZiwei(req: ZiweiRequest): unknown {
   const dateStr = `${req.year}-${req.month}-${req.day}`;
   const gender = req.gender === "女" ? "女" : "男";
   if (req.calendar === "lunar") {
-    return astro.byLunar(dateStr, req.timeIndex, gender, true, "zh-CN");
+    // 参数序：农历日期、时辰序、性别、是否闰月、是否修正闰月、语言
+    return astro.byLunar(dateStr, req.timeIndex, gender, false, true, "zh-CN");
   }
   return astro.bySolar(dateStr, req.timeIndex, gender, true, "zh-CN");
 }

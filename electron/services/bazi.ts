@@ -30,7 +30,9 @@ export function calcBazi(req: BaziRequest): unknown {
     lunar: lunar.toString(),
     yearInGanZhi: lunar.getYearInGanZhi(),
     yearShengXiao: lunar.getYearShengXiao(),
-    jieQiTable: lunar.getJieQiTable().size > 0 ? Object.fromEntries(lunar.getJieQiTable()) : {},
+    jieQiTable: Object.fromEntries(
+      Object.entries(lunar.getJieQiTable()).map(([name, solar]) => [name, solar.toString()])
+    ),
     fourPillars: {
       year: pillar(ec.getYear()),
       month: pillar(ec.getMonth()),
