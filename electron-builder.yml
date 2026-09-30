@@ -1,29 +1,109 @@
 appId: com.xuanshu.app
 productName: XuanShu
+copyright: Copyright © 2026 XuanShu
+
 directories:
+  buildResources: build
   output: release
+
+# 只打包运行必需内容；源码、测试、截图、校验脚本一律不进安装包
 files:
   - dist/**/*
   - dist-electron/**/*
   - resources/**/*
   - package.json
-  - "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}"
-  - "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}"
+  - "!**/*.map"
+  - "!**/*.ts"
+  - "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme,LICENSE,license}"
+  - "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples,.github}"
+  - "!**/node_modules/.bin"
+  - "!**/{.editorconfig,.eslintrc*,.gitignore,.npmrc,.prettierrc*,tsconfig*.json}"
+
 asar: true
+# better-sqlite3 是原生模块，.node 二进制必须解出 asar 才能 dlopen
+asarUnpack:
+  - "**/node_modules/better-sqlite3/**"
+  - "**/node_modules/bindings/**"
+  - "**/node_modules/file-uri-to-path/**"
+
+# 原生模块按 Electron ABI 重建。
+# CI 上自带网络，可直接重建；本地若想避开 GitHub，可先跑 `npm run deps:electron`
+# （走 npmmirror 镜像），再把此项设为 false 复用已有二进制。
+npmRebuild: true
+buildDependenciesFromSource: false
+
+# 关闭自动更新（本项目用的是自建数据更新模块，不走 electron-updater）
+publish:
+  provider: github
+  owner: siyueweiji-commits
+  repo: xuanshu
+  releaseType: release
+
 win:
+  icon: build/icon.ico
   target:
-    - nsis
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-${version}-win-${arch}-setup.${ext}
+  # 未做代码签名，显式关闭签名以免 CI 去找证书
+  signAndEditExecutable: true
+  verifyUpdateCodeSignature: false
+
 nsis:
   oneClick: false
   perMachine: false
+  allowElevation: true
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
+  createStartMenuShortcut: true
   shortcutName: 玄枢
+  # 中文安装向导
+  installerLanguages:
+    - zh_CN
+  language: "2052"
+  deleteAppDataOnUninstall: false
+
 mac:
-  target:
-    - dmg
+  icon: build/icon.icns
   category: public.app-category.reference
-linux:
   target:
-    - AppImage
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
+  # 无签名证书时避免打包失败
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  darkModeSupport: true
+
+dmg:
+  title: ${productName} ${version}
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+linux:
+  icon: build/icon.png
   category: Utility
+  synopsis: 离线命理应用（紫微斗数 / 八字 / 梅花易数 / 六爻 / 流日黄历）
+  description: |
+    玄枢 XuanShu —— 开箱即用的离线命理应用。
+    紫微斗数 · 八字 · 梅花易数 · 六爻 · 流日黄历 · 规则引擎与报告生成。
+    所有数据仅保存在本机，断网可完整使用。
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  artifactName: ${productName}-${version}-linux-${arch}.${ext}
+  desktop:
+    entry:
+      Name: 玄枢
+      Comment: 离线命理应用
+      Categories: Utility;Education;

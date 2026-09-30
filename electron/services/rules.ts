@@ -8,6 +8,7 @@ import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { builtinDir, userDir, userRoot } from "./dataPaths";
+import { getDb } from "../db/database";
 
 export interface Rule {
   id: string;
@@ -362,4 +363,63 @@ export function appDataSummary(): unknown {
     userDataDir: app.getPath("userData"),
     dataDir: userRoot() || app.getPath("userData")
   };
+}
+
+/* ------------------------------------------------------------------ */
+/*  首次启动免责声明（M9）                                              */
+/* ------------------------------------------------------------------ */
+
+const SETTINGS_KEY_DISCLAIMER = "app.disclaimerAcceptedVersion";
+
+export interface DisclaimerState {
+  accepted: boolean;
+  /** 已接受的版本号；为空表示从未接受 */
+  acceptedVersion: string;
+  /** 当前应用版本 */
+  currentVersion: string;
+  text: string;
+}
+
+const DISCLAIMER_TEXT = [
+  "玄枢是一款**文化娱乐工具**，用于个人自省与命理学习研究。",
+  "",
+  "所有排盘、卦象、运势、报告与注意事项输出均仅供娱乐参考，不构成任何医疗、法律、投资或驾驶安全建议，也不承诺任何预测准确性。请勿据此做出重大决策。",
+  "",
+  "全部数据（档案、命盘、报告、卦例、事件记录）只保存在本机数据目录，不会上传到任何云端服务器；具备联网条件时，应用仅从公开更新源拉取规则库与知识库，不会上传本地数据。"
+].join("\n");
+
+function readDisclaimerVersion(): string {
+  try {
+    const row = getDb().prepare("SELECT value FROM settings WHERE key = ?").get(SETTINGS_KEY_DISCLAIMER) as
+      | { value: string }
+      | undefined;
+    return row?.value ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function disclaimerState(): DisclaimerState {
+  const acceptedVersion = readDisclaimerVersion();
+  const currentVersion = app.getVersion();
+  return {
+    accepted: acceptedVersion === currentVersion,
+    acceptedVersion,
+    currentVersion,
+    text: DISCLAIMER_TEXT
+  };
+}
+
+export function acceptDisclaimer(): DisclaimerState {
+  try {
+    const version = app.getVersion();
+    getDb()
+      .prepare(
+        "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+      )
+      .run(SETTINGS_KEY_DISCLAIMER, version);
+  } catch {
+    /* 写不进去也不该拦住用户，下次仍会提示 */
+  }
+  return disclaimerState();
 }

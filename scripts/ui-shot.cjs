@@ -101,9 +101,16 @@ const PAGES = [
     focus: "#data-update",
     pre: `(() => { const b = [...document.querySelectorAll("button")].find(x => x.textContent.trim() === "检查更新"); b && b.click(); return "ok"; })()`,
     click: null
+  },
+  {
+    // 首次启动免责声明弹窗：需要 XUANSHU_SHOT_DISCLAIMER=1 才显示
+    //   XUANSHU_SHOT_DISCLAIMER=1 npm run shot -- disclaimer
+    key: "disclaimer",
+    hash: "#/",
+    title: "首次启动免责声明",
+    click: null
   }
 ];
-
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** 等合成器真正把这一帧画完（隐藏窗口下 resize 后会出现陈旧帧） */

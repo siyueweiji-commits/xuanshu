@@ -13,9 +13,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
       - name: Install dependencies
         run: npm install
-      - name: Typecheck
+      - name: Typecheck（主进程 + 渲染层）
         run: npm run typecheck
       - name: Build
         run: npm run build
+      # 纯计算类校验脚本不依赖 Electron 窗口，Linux 上可直接跑
+      - name: Verify m4（流日 / 黄历）
+        run: npm run verify:m4
+      - name: Verify m5（模板引擎 / 报告生成）
+        run: npm run verify:m5
+      - name: Verify m6（卦象基础 / 梅花 / 六爻）
+        run: npm run verify:m6

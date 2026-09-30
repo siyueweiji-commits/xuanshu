@@ -27,7 +27,9 @@ import {
   removeUserRule,
   createRule,
   exportRules,
-  importRules
+  importRules,
+  disclaimerState,
+  acceptDisclaimer
 } from "../services/rules";
 import { buildReport, listTemplates, ReportBirthInput, ReportRequest } from "../services/report";
 import {
@@ -202,6 +204,14 @@ function birthMeta(b: ResolvedBirthTime) {
 export function registerIpcHandlers(): void {
   // 应用信息
   handle("app:info", () => appDataSummary());
+
+  // 首次启动免责声明（M9）：接受状态与版本一起记，升版本后可重新提示
+  handle("app:disclaimer", () => disclaimerState());
+
+  handle("app:accept-disclaimer", () => {
+    acceptDisclaimer();
+    return disclaimerState();
+  });
 
   // 档案管理
   handle("profile:create", (payload) => {

@@ -208,6 +208,27 @@ const HANDLERS = {
     dataDir: path.join(process.env.APPDATA || "C:\\Users", "XuanShu", "data")
   }),
 
+  // 首次启动免责声明：默认放行，避免挡住所有截图；
+  // 设 XUANSHU_SHOT_DISCLAIMER=1 时返回未接受，用于单独截弹窗。
+  "app:disclaimer": () => ({
+    accepted: process.env.XUANSHU_SHOT_DISCLAIMER !== "1",
+    acceptedVersion: "",
+    currentVersion: "0.1.0",
+    text: [
+      "玄枢是一款**文化娱乐工具**，用于个人自省与命理学习研究。",
+      "",
+      "所有排盘、卦象、运势、报告与注意事项输出均仅供娱乐参考，不构成任何医疗、法律、投资或驾驶安全建议，也不承诺任何预测准确性。请勿据此做出重大决策。",
+      "",
+      "全部数据（档案、命盘、报告、卦例、事件记录）只保存在本机数据目录，不会上传到任何云端服务器；具备联网条件时，应用仅从公开更新源拉取规则库与知识库，不会上传本地数据。"
+    ].join("\n")
+  }),
+  "app:accept-disclaimer": () => ({
+    accepted: true,
+    acceptedVersion: "0.1.0",
+    currentVersion: "0.1.0",
+    text: ""
+  }),
+
   "profile:list": () => MOCK_PROFILES,
   "profile:create": () => ({ id: 3 }),
   "profile:delete": (o) => ({ deleted: num(o, "id") }),

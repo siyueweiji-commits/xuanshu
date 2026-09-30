@@ -27,6 +27,7 @@
 | 报告生成 | ✅ M5 | 零依赖模板引擎渲染 Markdown；单日 / 区间（1~90 天）报告，可选叠加个人命盘，可存档与导出 .md |
 | 反馈回测 | ✅ M7 | 记录破财/争吵/生病/好事等实际事件；与该日注意事项逐条对账，统计规则命中率，可导出 CSV |
 | 数据更新 | ✅ M8 | 从更新源拉 manifest → 逐文件 sha256 校验 → 备份后落地 → 失败可回滚；支持 http / 本地目录 / file:// |
+| 打包分发 | ✅ M9 | electron-builder 三平台安装包；应用图标；首次启动免责声明；产物自检 `--self-test` |
 
 ## 设计
 
@@ -54,8 +55,11 @@ npm run verify:m5  # 模板引擎 / 报告生成 / 规则库管理校验（含 3
 npm run verify:m6  # 卦象基础 / 梅花三法 / 六爻装卦校验（含标准卦表比对与 1000 次铜钱分布）
 npm run verify:m7  # 反馈 CRUD 与回测命中率校验（走 Electron，含 365 天回测压测）
 npm run verify:m8  # 数据更新校验（走 Electron，源用本地 xuanshu-data 仓库，含篡改/越界/回滚）
+npm run self-test  # 开发态自检：资源 / 原生模块 / 数据库 / 服务层 / 界面渲染
 npm run shot       # 用 Electron 真实渲染各路由并截图到 .uishot/
-npm run dist:win   # 打包 Windows 安装包
+npm run icons      # 生成 build/icon.{png,ico,icns}
+npm run pack:dir   # 打包成免安装目录并**自动跑产物自检**（推荐先跑这个）
+npm run dist:win   # 打包 Windows 安装包（NSIS）
 ```
 
 > 新增 IPC 通道时必须同时改三处：`electron/services/*.ts` 实现 →
@@ -76,13 +80,45 @@ npm run dist:win   # 打包 Windows 安装包
 
 数据目录：`%APPDATA%/xuanshu/`（Windows）。
 
+## 打包与自检
+
+```bash
+npm run pack:dir:win    # 打成 win-unpacked 目录，随后自动执行产物自检
+npm run pack:dir:mac
+npm run pack:dir:linux
+npm run dist:win        # 正式 NSIS 安装包
+```
+
+`pack:dir` 会做两件容易漏掉的事：
+
+1. **每次输出到全新的时间戳目录**（`release/dir-<时间戳>/`），既避免「清空旧目录」失败，
+   又保留历次产物可对比；
+2. **打完立刻跑产物自检** —— 执行 `XuanShu.exe --self-test`，在**真实 asar 环境**下逐项验证：
+
+   - `app.getAppPath()` 是否落在 `app.asar` 内
+   - 四类内置资源（rules / knowledge / templates / data）在 asar 内是否可读
+   - `better-sqlite3` 原生模块（`asarUnpack` 后）能否真正 dlopen 并建表
+   - 八字 / 紫微 / 梅花 / 六爻 / 流日报告 是否真能算出来，且**规则至少命中一次**
+   - 开一个隐藏窗口加载 `dist/index.html`，确认 React 挂载、侧边导航齐备、preload 已注入
+
+   「`npm run build` 通过」不代表安装包可用；这一步才是发布前的最后一道闸。
+   自检输出 `XUANSHU_SELF_TEST { … }` 便于本地与 CI 解析，失败时退出码非 0。
+
+> 本机若已设置 `ELECTRON_RUN_AS_NODE=1`，直接 `electron .` 会退化成纯 Node，
+> 因此自检统一走 `npm run self-test`（内部剥离该变量）。
+>
+> 若本机无法访问 GitHub，electron-builder 会卡在下载 Electron 二进制，
+> `pack:dir` 会自动改用本地 `node_modules/electron/dist` 作为分发源。
+
 ## 目录结构
 
 ```
 xuanshu/
 ├─ electron/        # 主进程：main / preload / ipc / db / services
-├─ src/             # React 前端：pages / lib
-├─ resources/       # 内置规则库 / 知识库 / 模板 / 数据
+├─ src/             # React 前端：pages / components / lib
+├─ resources/       # 内置规则库 / 知识库 / 模板 / 数据（打包进 asar）
+├─ build/           # 应用图标（生成物）
+├─ scripts/         # 校验脚本 / 截图 / 打包 / 图标生成
 ├─ docs/            # PRD 等文档
 └─ .github/         # CI / Release workflows
 ```
@@ -90,7 +126,6 @@ xuanshu/
 ## 里程碑
 
 M1 骨架 → M2 历法+紫微 → M3 八字 → M4 流日+黄历 → M5 规则引擎+报告 → M6 梅花+六爻 → M7 反馈回测 → M8 更新模块 → M9 打包分发 → M10 优化发布
-
 ## 许可证
 
 [MIT](./LICENSE)

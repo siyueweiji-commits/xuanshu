@@ -4,9 +4,51 @@ on:
   push:
     tags:
       - "v*"
+  # 允许手动触发一次打包（用于产出未发布标签的测试包）
+  workflow_dispatch:
 
 jobs:
+  # 先把「代码是否真的能跑」验一遍，全绿才进入打包
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm install
+      - name: Native deps for Electron ABI
+        run: npm run deps:electron
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Service-layer verification (m4 流日黄历)
+        run: npm run verify:m4
+      - name: Service-layer verification (m5 模板与报告)
+        run: npm run verify:m5
+      - name: Service-layer verification (m6 卦象与起卦)
+        run: npm run verify:m6
+      # m7/m8/verify:main 需要真实 Electron 窗口（better-sqlite3 是 Electron ABI），
+      # Linux runner 上要额外配 xvfb，这里先只在 Windows 跑。
+      - name: Service-layer verification (m7 反馈回测)
+        if: runner.os == 'Windows'
+        run: npm run verify:m7
+      - name: Service-layer verification (m8 数据更新)
+        if: runner.os == 'Windows'
+        run: npm run verify:m8
+      - name: End-to-end IPC verification
+        if: runner.os == 'Windows'
+        run: npm run verify:main
+
   release:
+    needs: verify
     strategy:
       fail-fast: false
       matrix:
@@ -17,11 +59,37 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
       - name: Install dependencies
         run: npm install
+      - name: Native deps for Electron ABI
+        run: npm run deps:electron
       - name: Build
         run: npm run build
+      - name: Generate icons
+        run: npm run icons
+      # 先打成目录并跑产物自检（asar 读取 / 原生模块 dlopen / 内置资源 / 界面渲染），
+      # 自检不过就中止，避免发布一个「装了打不开」的安装包。
+      - name: Package & self-test
+        shell: bash
+        run: |
+          case "${{ runner.os }}" in
+            Windows) node scripts/pack-dir.cjs --win ;;
+            macOS)   node scripts/pack-dir.cjs --mac ;;
+            *)       node scripts/pack-dir.cjs --linux ;;
+          esac
       - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
         run: npx electron-builder --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload installers
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: xuanshu-${{ runner.os }}
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.AppImage
+          if-no-files-found: warn

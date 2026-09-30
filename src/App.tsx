@@ -1,5 +1,6 @@
 import { HashRouter, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import Home from "./pages/Home";
+import DisclaimerGate from "./components/DisclaimerGate";
 import LiuRi from "./pages/LiuRi";
 import ZiWei from "./pages/ZiWei";
 import BaZi from "./pages/BaZi";
@@ -101,8 +102,10 @@ function Shell() {
 
 export default function App() {
   return (
-    <HashRouter>
-      <Shell />
-    </HashRouter>
+    <DisclaimerGate>
+      <HashRouter>
+        <Shell />
+      </HashRouter>
+    </DisclaimerGate>
   );
 }
