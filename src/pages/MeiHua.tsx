@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ipc } from "../lib/ipc";
+import PageHead from "../components/PageHead";
 
 interface MeihuaResult {
   hexagram: string;
@@ -32,47 +33,77 @@ export default function MeiHua() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <section className="rounded-2xl bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold">梅花易数</h2>
-        <div className="mb-4 flex gap-2 text-sm">
+    <div className="page">
+      <PageHead title="梅花易数" desc="以时间或数字起卦，看体用生克与动爻所在。" />
+
+      <section className="card card-p">
+        <div className="seg">
           {(["time", "numbers"] as const).map((m) => (
-            <button key={m}
-              className={`rounded-lg px-3 py-1.5 ${mode === m ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-600"}`}
-              onClick={() => setMode(m)}>
+            <button
+              key={m}
+              className={`seg-item ${mode === m ? "seg-item-active" : ""}`}
+              onClick={() => setMode(m)}
+            >
               {m === "time" ? "时间起卦" : "数字起卦"}
             </button>
           ))}
         </div>
-        {mode === "numbers" && (
-          <div className="mb-4 flex items-center gap-3 text-sm">
-            <input type="number" min={1} className="w-24 rounded-lg border border-neutral-300 px-3 py-2"
-              value={nums.num1} onChange={(e) => setNums({ ...nums, num1: +e.target.value })} />
-            <span className="text-neutral-400">/</span>
-            <input type="number" min={1} className="w-24 rounded-lg border border-neutral-300 px-3 py-2"
-              value={nums.num2} onChange={(e) => setNums({ ...nums, num2: +e.target.value })} />
-          </div>
-        )}
-        {mode === "time" && (
-          <p className="mb-4 text-xs text-neutral-400">
-            当前版本按固定农历分量演示；M2 接入历法后将自动取起卦时刻的农历年月日时。
-          </p>
-        )}
-        <button className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700"
-          onClick={() => void qiGua()}>
+
+        <div className="mt-5">
+          {mode === "numbers" ? (
+            <div className="flex items-end gap-3">
+              <div className="w-24">
+                <label className="label">数一</label>
+                <input
+                  type="number"
+                  min={1}
+                  className="input num"
+                  value={nums.num1}
+                  onChange={(e) => setNums({ ...nums, num1: +e.target.value })}
+                />
+              </div>
+              <div className="w-24">
+                <label className="label">数二</label>
+                <input
+                  type="number"
+                  min={1}
+                  className="input num"
+                  value={nums.num2}
+                  onChange={(e) => setNums({ ...nums, num2: +e.target.value })}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="notice notice-quiet">
+              当前版本按固定农历分量演示；接入历法后将自动取起卦时刻的农历年月日时。
+            </div>
+          )}
+        </div>
+
+        {error && <p className="mt-3 text-xs text-danger">{error}</p>}
+
+        <button className="btn btn-primary mt-4" onClick={() => void qiGua()}>
           起卦
         </button>
-        {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
       </section>
 
       {result && (
-        <section className="rounded-2xl bg-white p-6 text-center shadow-sm">
-          <div className="text-3xl font-bold tracking-wide">{result.hexagram}</div>
-          <p className="mt-2 text-sm text-neutral-500">
-            上卦 {result.upperName} ｜ 下卦 {result.lowerName} ｜ 动爻 第{result.movingLine}爻
+        <section className="card card-p text-center">
+          <div className="eyebrow">本卦</div>
+          <div className="mt-2 text-[34px] font-semibold leading-none tracking-tightest">
+            {result.hexagram}
+          </div>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <span className="chip chip-neutral">上卦 {result.upperName}</span>
+            <span className="chip chip-neutral">下卦 {result.lowerName}</span>
+            <span className="chip chip-accent">动爻 第 {result.movingLine} 爻</span>
+          </div>
+          <p className="mx-auto mt-5 max-w-xl rounded-lg bg-gray2 px-4 py-3 text-[13px] text-ink">
+            {result.bodyUseRelation}
           </p>
-          <p className="mt-4 rounded-lg bg-neutral-50 p-3 text-sm">{result.bodyUseRelation}</p>
-          <p className="mt-3 text-xs text-neutral-400">{result.source} · {result.disclaimer}</p>
+          <p className="mt-4 sub">
+            {result.source} · {result.disclaimer}
+          </p>
         </section>
       )}
     </div>

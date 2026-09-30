@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ipc } from "../lib/ipc";
+import PageHead from "../components/PageHead";
 
 interface LiuyaoResult {
   question: string;
@@ -26,41 +27,74 @@ export default function LiuYao() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <section className="rounded-2xl bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold">六爻起卦</h2>
-        <input className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-          placeholder="所问何事（可选）" value={question} onChange={(e) => setQuestion(e.target.value)} />
-        <button className="mt-4 rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700"
-          onClick={() => void qiGua()}>
+    <div className="page">
+      <PageHead title="六爻起卦" desc="三枚铜钱摇六次，依老阳老阴定动爻，得出本卦与变卦。" />
+
+      <section className="card card-p">
+        <label className="label">所问何事（可选）</label>
+        <input
+          className="input"
+          placeholder="如：本次体系外审能否顺利通过"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+        />
+        {error && <p className="mt-3 text-xs text-danger">{error}</p>}
+        <button className="btn btn-primary mt-4" onClick={() => void qiGua()}>
           掷铜钱起卦
         </button>
-        {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
       </section>
 
       {result && (
-        <section className="rounded-2xl bg-white p-6 shadow-sm">
+        <section className="card card-p">
           <div className="text-center">
-            <div className="text-2xl font-bold">{result.originalHexagram}</div>
+            <div className="eyebrow">本卦</div>
+            <div className="mt-2 text-[28px] font-semibold leading-none tracking-tightest">
+              {result.originalHexagram}
+            </div>
             {result.changedHexagram && (
-              <div className="mt-1 text-sm text-neutral-500">变卦：{result.changedHexagram}</div>
+              <div className="mt-3 text-[13px] text-ink-2">
+                变卦 <span className="font-medium text-ink">{result.changedHexagram}</span>
+              </div>
             )}
-            <div className="mt-1 text-xs text-neutral-400">问：{result.question}</div>
+            {result.question && <div className="mt-2 sub">问：{result.question}</div>}
           </div>
-          <ul className="mt-6 space-y-2">
+
+          <ul className="mt-6 space-y-1.5">
             {[...result.lines].reverse().map((l) => (
-              <li key={l.position} className="flex items-center justify-between rounded-lg bg-neutral-50 px-4 py-2 text-sm">
-                <span>
-                  第{l.position}爻：{l.value ? "━━━━━ 阳爻" : "━━ ━━ 阴爻"}
-                  {l.changing && <span className="ml-2 text-red-500">动</span>}
+              <li
+                key={l.position}
+                className="flex items-center justify-between gap-4 rounded-lg bg-gray2 px-4 py-2.5"
+              >
+                <span className="flex items-center gap-3">
+                  <span className="num w-5 shrink-0 text-xs text-ink-3">{l.position}</span>
+                  <YaoLine yang={Boolean(l.value)} />
+                  {l.changing && <span className="chip chip-danger">动</span>}
                 </span>
-                <span className="text-xs text-neutral-400">{l.coinThrow.join(" ")}</span>
+                <span className="num text-xs text-ink-3">{l.coinThrow.join(" ")}</span>
               </li>
             ))}
           </ul>
-          <p className="mt-4 text-xs text-neutral-400">{result.disclaimer}</p>
+
+          <p className="mt-5 sub">{result.disclaimer}</p>
         </section>
       )}
     </div>
+  );
+}
+
+/** 爻线：阳爻一整条，阴爻断开两段 */
+function YaoLine({ yang }: { yang: boolean }) {
+  const bar = "h-[3px] rounded-full";
+  return (
+    <span className="flex w-16 shrink-0 items-center gap-2" title={yang ? "阳爻" : "阴爻"}>
+      {yang ? (
+        <span className={`${bar} w-full bg-ink`} />
+      ) : (
+        <>
+          <span className={`${bar} flex-1 bg-ink`} />
+          <span className={`${bar} flex-1 bg-ink`} />
+        </>
+      )}
+    </span>
   );
 }

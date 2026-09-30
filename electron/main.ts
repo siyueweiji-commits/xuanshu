@@ -11,10 +11,19 @@ function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 820,
-    minWidth: 960,
-    minHeight: 640,
+    minWidth: 1000,
+    minHeight: 660,
     title: "玄枢 XuanShu",
+    backgroundColor: "#f5f5f7",
     autoHideMenuBar: true,
+    // 无边框标题栏：隐藏原生标题栏，右侧保留系统窗口控件（最小化 / 最大化 / 关闭），
+    // 渲染层用 .titlebar-drag 划出可拖拽区域。
+    titleBarStyle: "hidden",
+    titleBarOverlay: {
+      color: "#ffffff",
+      symbolColor: "#3c3c43",
+      height: 38
+    },
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,

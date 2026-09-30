@@ -2,12 +2,243 @@
 @tailwind components;
 @tailwind utilities;
 
-html,
-body,
-#root {
-  height: 100%;
+/* ============================================================
+   玄枢 · Apple 简约风设计基线
+   令牌定义见 tailwind.config.js，组件类统一在下方沉淀，
+   页面不再各自拼写样式字符串。
+   ============================================================ */
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-canvas text-ink antialiased;
+    font-size: 14px;
+    line-height: 1.55;
+    text-rendering: optimizeLegibility;
+    overflow: hidden;
+  }
+
+  ::selection {
+    background: rgba(0, 122, 255, 0.16);
+  }
+
+  /* 细窄、低调的滚动条 */
+  *::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.16);
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(0, 0, 0, 0.3);
+  }
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* 数字输入框去掉上下箭头，保持干净 */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  details > summary {
+    list-style: none;
+  }
+  details > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  /* 无边框窗口：可拖拽区域 */
+  .titlebar-drag {
+    -webkit-app-region: drag;
+  }
+  .titlebar-drag button,
+  .titlebar-drag input,
+  .titlebar-drag select,
+  .titlebar-drag a,
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
 }
 
-body {
-  @apply bg-neutral-100 text-neutral-800 antialiased;
+@layer components {
+  /* ---------- 容器 ---------- */
+  .card {
+    @apply rounded-2xl border border-hair bg-white shadow-card;
+  }
+  .card-p {
+    @apply p-5 sm:p-6;
+  }
+  .page {
+    @apply mx-auto w-full space-y-5;
+  }
+
+  /* ---------- 文本层级 ---------- */
+  .title-lg {
+    @apply text-[22px] font-semibold leading-tight tracking-tightest text-ink;
+  }
+  .title {
+    @apply text-[15px] font-semibold tracking-tightest text-ink;
+  }
+  .title-sm {
+    @apply text-[13px] font-semibold text-ink;
+  }
+  .sub {
+    @apply text-xs leading-relaxed text-ink-3;
+  }
+  .eyebrow {
+    @apply text-micro font-semibold uppercase tracking-[0.08em] text-ink-3;
+  }
+  .label {
+    @apply mb-1.5 block text-xs font-medium text-ink-2;
+  }
+  .num {
+    @apply font-mono tabular-nums;
+  }
+
+  /* ---------- 表单控件 ---------- */
+  .input,
+  .select {
+    @apply h-9 w-full rounded border border-line bg-white px-3 text-sm text-ink
+      outline-none transition duration-150
+      placeholder:text-ink-4
+      focus:border-accent focus:ring-4 focus:ring-accent/15
+      disabled:cursor-not-allowed disabled:border-transparent disabled:bg-gray3 disabled:text-ink-3;
+  }
+
+  .select {
+    @apply cursor-pointer appearance-none pr-8;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.75 4.5 6 7.75 9.25 4.5' fill='none' stroke='%238e8e93' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+  }
+
+  /* 复选框：iOS 式方角圆点 */
+  .check {
+    @apply h-4 w-4 shrink-0 cursor-pointer appearance-none rounded-[5px] border border-line bg-white
+      transition duration-150
+      checked:border-accent checked:bg-accent
+      focus-visible:ring-4 focus-visible:ring-accent/15;
+    background-repeat: no-repeat;
+    background-position: center;
+  }
+  .check:checked {
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.6 6.3 4.9 8.6 9.4 3.9' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+
+  /* ---------- 按钮 ---------- */
+  .btn {
+    @apply inline-flex h-9 shrink-0 select-none items-center justify-center gap-1.5
+      rounded px-3.5 text-[13px] font-medium
+      transition duration-150 active:scale-[0.975]
+      disabled:pointer-events-none disabled:opacity-40;
+  }
+  .btn-primary {
+    @apply bg-accent text-white shadow-btn hover:bg-accent-dark;
+  }
+  .btn-secondary {
+    @apply border border-line bg-white text-ink hover:bg-gray1 active:bg-gray3;
+  }
+  .btn-plain {
+    @apply px-2 text-accent hover:bg-accent/10;
+  }
+  .btn-quiet {
+    @apply px-2 text-ink-3 hover:bg-black/5 hover:text-ink;
+  }
+  .btn-danger {
+    @apply px-2 text-danger hover:bg-danger/10;
+  }
+  .btn-sm {
+    @apply h-7 rounded-sm px-2.5 text-xs;
+  }
+
+  /* ---------- 分段控件（UISegmentedControl 观感） ---------- */
+  .seg {
+    @apply inline-flex items-center gap-0.5 rounded bg-gray6 p-0.5;
+  }
+  .seg-item {
+    @apply h-7 shrink-0 rounded-sm px-3 text-[13px] font-medium text-ink-2 transition duration-150;
+  }
+  .seg-item:hover {
+    @apply text-ink;
+  }
+  .seg-item-active,
+  .seg-item-active:hover {
+    @apply bg-white text-ink shadow-seg;
+  }
+
+  /* ---------- 侧边导航 ---------- */
+  .nav-item {
+    @apply flex items-center gap-2.5 rounded-[9px] px-2.5 py-[7px]
+      text-[13px] font-medium text-ink-2 transition-colors duration-100;
+  }
+  .nav-item:hover {
+    @apply bg-black/[0.045] text-ink;
+  }
+  .nav-item-active,
+  .nav-item-active:hover {
+    @apply bg-accent text-white;
+  }
+
+  /* ---------- 标签 / 徽标 ---------- */
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-px text-micro font-medium;
+  }
+  .chip-neutral {
+    @apply bg-black/[0.055] text-ink-2;
+  }
+  .chip-accent {
+    @apply bg-accent/10 text-accent;
+  }
+  .chip-warn {
+    @apply bg-warning/15 text-[#a35b00];
+  }
+  .chip-danger {
+    @apply bg-danger/10 text-[#c92b22];
+  }
+  .chip-success {
+    @apply bg-success/15 text-[#1f8039];
+  }
+
+  /* ---------- 键值行 ---------- */
+  .kv {
+    @apply flex items-baseline justify-between gap-4 py-[5px];
+  }
+  .kv-k {
+    @apply shrink-0 text-xs text-ink-3;
+  }
+  .kv-v {
+    @apply min-w-0 truncate text-right text-[13px] text-ink;
+  }
+
+  /* ---------- 提示条 ---------- */
+  .notice {
+    @apply rounded-lg px-3 py-2.5 text-xs leading-relaxed;
+  }
+  .notice-info {
+    @apply bg-accent/[0.07] text-[#0a5aa8];
+  }
+  .notice-warn {
+    @apply bg-warning/[0.09] text-[#8a5300];
+  }
+  .notice-danger {
+    @apply bg-danger/[0.07] text-[#b3281f];
+  }
+  .notice-quiet {
+    @apply bg-gray2 text-ink-2;
+  }
 }
