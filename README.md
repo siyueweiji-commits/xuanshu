@@ -22,7 +22,7 @@
 | 八字排盘 | ✅ M3 | 四柱十神 / 藏干纳音地势旬空 / 五行力量与旺衰喜忌 / 大运流年流月 / 神煞 |
 | 梅花易数 | 🚧 M1 骨架 | 时间起卦 / 数字起卦 |
 | 六爻 | 🚧 M1 骨架 | 铜钱模拟起卦 |
-| 流日运势 | 🔜 M4 | 黄历宜忌 + 规则引擎注意事项 |
+| 流日黄历 | ✅ M4 | 干支宜忌 / 冲煞 / 建除十二神 / 二十八宿 / 天神 / 吉神凶煞 / 方位 / 十二时辰吉凶 / 五类注意事项 |
 | 报告生成 | 🔜 M5 | 模板拼接 + 规则库约束 |
 | 反馈回测 | 🔜 M7 | 事件记录 + 命中率统计 |
 | 数据更新 | 🔜 M8 | manifest + sha256 校验 + 回滚 |
@@ -47,6 +47,7 @@ npm install        # 安装依赖
 npm run dev        # 启动开发（Vite + Electron）
 npm run typecheck  # 类型检查
 npm run build      # 编译主进程 + 渲染进程
+npm run verify:main # 真实主进程端到端校验（SQLite ABI / IPC / 窗口配置）
 npm run shot       # 用 Electron 真实渲染各路由并截图到 .uishot/
 npm run dist:win   # 打包 Windows 安装包
 ```

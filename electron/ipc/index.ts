@@ -15,8 +15,8 @@ import {
 import { calcBazi, BaziRequest } from "../services/bazi";
 import { shijianQigua, shuziQigua } from "../services/meihua";
 import { qigua } from "../services/liuyao";
-import { getHuangli } from "../services/huangli";
-import { listRules, matchRules, saveUserRule, appDataSummary, DISCLAIMER, Rule } from "../services/rules";
+import { calcDaily } from "../services/daily";
+import { listRules, saveUserRule, appDataSummary, Rule } from "../services/rules";
 
 type Handler = (payload: unknown) => unknown;
 
@@ -221,16 +221,33 @@ export function registerIpcHandlers(): void {
     return { saved: true };
   });
 
-  // 流日运势（M4 完善：规则引擎注意事项）
+  // 流日运势（M4）：黄历 + 可选个人命盘（八字 / 紫微流日）→ 五类注意事项
   handle("daily:fortune", (payload) => {
     const o = asObject(payload);
-    const huangli = getHuangli({ year: num(o, "year"), month: num(o, "month"), day: num(o, "day") }) as Record<string, unknown>;
-    const facts = {
-      dayInGanZhi: huangli.dayInGanZhi,
-      jieQi: huangli.jieQi
-    };
-    const advice = matchRules(listRules(), facts).map((r) => r.advice);
-    return { huangli, advice, disclaimer: DISCLAIMER };
+    const year = num(o, "year");
+    const month = num(o, "month");
+    const day = num(o, "day");
+
+    const rawBirth = o.birth && typeof o.birth === "object" ? asObject(o.birth) : null;
+    let resolved: ResolvedBirthTime | null = null;
+    let birth: Parameters<typeof calcDaily>[0]["birth"];
+
+    if (rawBirth && typeof rawBirth.year === "number" && Number.isFinite(rawBirth.year)) {
+      resolved = resolveBirthTime(birthInput(rawBirth));
+      birth = {
+        gender: str(rawBirth, "gender", "男"),
+        year: resolved.year,
+        month: resolved.month,
+        day: resolved.day,
+        timeIndex: resolved.timeIndex,
+        hour: resolved.hour,
+        minute: resolved.minute,
+        calendar: str(rawBirth, "calendar", "solar") === "lunar" ? "lunar" : "solar"
+      };
+    }
+
+    const result = calcDaily(birth ? { year, month, day, birth } : { year, month, day });
+    return { ...result, meta: resolved ? { birth: birthMeta(resolved) } : null };
   });
 
   // 导出命盘图片：渲染进程用 canvas 生成 PNG 的 dataURL，这里负责落盘

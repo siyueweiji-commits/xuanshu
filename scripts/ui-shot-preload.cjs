@@ -14,6 +14,7 @@ const ziwei = require(path.join(SVC, "ziwei.js"));
 const bazi = require(path.join(SVC, "bazi.js"));
 const meihua = require(path.join(SVC, "meihua.js"));
 const liuyao = require(path.join(SVC, "liuyao.js"));
+const daily = require(path.join(SVC, "daily.js"));
 
 function asObject(p) {
   return p && typeof p === "object" ? p : {};
@@ -166,6 +167,32 @@ const HANDLERS = {
         }),
 
   "divination:liuyao": (o) => liuyao.qigua({ question: str(o, "question") }),
+
+  "daily:fortune": (o) => {
+    const raw = o.birth && typeof o.birth === "object" ? o.birth : null;
+    let birth;
+    let meta = null;
+    if (raw && typeof raw.year === "number" && Number.isFinite(raw.year)) {
+      const b = calendar.resolveBirthTime(birthInput(raw));
+      birth = {
+        gender: str(raw, "gender", "男"),
+        year: b.year,
+        month: b.month,
+        day: b.day,
+        timeIndex: b.timeIndex,
+        hour: b.hour,
+        minute: b.minute,
+        calendar: str(raw, "calendar", "solar")
+      };
+      meta = { birth: birthMeta(b) };
+    }
+    const result = daily.calcDaily(
+      birth
+        ? { year: num(o, "year"), month: num(o, "month"), day: num(o, "day"), birth }
+        : { year: num(o, "year"), month: num(o, "month"), day: num(o, "day") }
+    );
+    return { ...result, meta };
+  },
 
   "export:image": () => ({
     saved: true,

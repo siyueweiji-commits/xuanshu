@@ -47,6 +47,38 @@ export interface HoroscopeScopeView {
   landedPalace: string;
 }
 
+/** 流日盘（M4）：把 `horoscope()` 的 daily 层摊平成可直接展示与匹配的纯数据 */
+export interface ZiweiDailyResult {
+  targetDate: string;
+  solarDate: string;
+  lunarDate: string;
+  nominalAge: number;
+
+  decadal: HoroscopeScopeView;
+  yearly: HoroscopeScopeView;
+  monthly: HoroscopeScopeView;
+  daily: HoroscopeScopeView;
+  hourly: HoroscopeScopeView;
+
+  /** 流日四化星名 */
+  mutagenStars: { lu: string; quan: string; ke: string; ji: string };
+  /** 四化星分别落入的流日宫名（数组，正常情况下各一枚） */
+  mutagenPalaces: { lu: string[]; quan: string[]; ke: string[]; ji: string[] };
+
+  /** 流日命宫主星 */
+  soulStars: string[];
+  /** 流日宫名 → 本命主星名 */
+  palaceStars: Record<string, string[]>;
+  /** 流日宫名 → 流日小星名（日禄/日马/日昌…） */
+  palaceDailyStars: Record<string, string[]>;
+  /** 流日宫名 → 该宫在本命盘中的宫名（用于对照） */
+  palaceOriginName: Record<string, string>;
+  /** 流日宫名 → 该宫命中的四化标记 */
+  palaceMutagen: Record<string, Array<{ star: string; mutagen: string }>>;
+
+  disclaimer: string;
+}
+
 /** 大限条目（一生共 12 个） */
 export interface DecadalView {
   index: number;
@@ -274,4 +306,174 @@ export function calcZiweiHoroscope(req: ZiweiHoroscopeRequest): ZiweiHoroscopeRe
     })),
     disclaimer: DISCLAIMER
   };
+}
+
+/* ------------------------------------------------------------------ */
+/*  流日盘（M4）                                                        */
+/* ------------------------------------------------------------------ */
+
+interface RawHoroscopeScope {
+  index: number;
+  name: string;
+  heavenlyStem: string;
+  earthlyBranch: string;
+  mutagen: string[];
+  palaceNames: string[];
+  stars?: Array<Array<{ name?: string; type?: string }>>;
+}
+
+interface RawHoroscope {
+  solarDate: string;
+  lunarDate: string;
+  age: { nominalAge: number };
+  decadal: RawHoroscopeScope;
+  yearly: RawHoroscopeScope;
+  monthly: RawHoroscopeScope;
+  daily: RawHoroscopeScope;
+  hourly: RawHoroscopeScope;
+}
+
+const MUTAGEN_KEYS = ["lu", "quan", "ke", "ji"] as const;
+const MUTAGEN_CN = ["禄", "权", "科", "忌"] as const;
+
+/**
+ * 流日盘排盘。
+ *
+ * 与 `calcZiweiHoroscope` 的差别：后者只给各运限层的元信息，
+ * 这里额外把「流日十二宫各自有哪些主星、四化落在哪一宫」摊平成扁平结构，
+ * 便于规则引擎直接匹配，也便于 UI 渲染。
+ */
+export function calcZiweiDaily(req: ZiweiHoroscopeRequest): ZiweiDailyResult {
+  if (
+    !Number.isFinite(req.targetYear) ||
+    !Number.isFinite(req.targetMonth) ||
+    !Number.isFinite(req.targetDay)
+  ) {
+    throw new Error("流日排盘需要提供目标日期（targetYear / targetMonth / targetDay）");
+  }
+
+  const astrolabe = buildAstrolabe(req);
+  const targetDate = `${req.targetYear}-${req.targetMonth}-${req.targetDay}`;
+  const timeIndex = Number.isFinite(req.targetTimeIndex)
+    ? (req.targetTimeIndex as number)
+    : req.timeIndex;
+
+  const horoscope = astrolabe.horoscope(targetDate, timeIndex).toJSON() as unknown as RawHoroscope;
+
+  const toView = (item: RawHoroscopeScope): HoroscopeScopeView => ({
+    index: item.index,
+    name: item.name,
+    heavenlyStem: item.heavenlyStem,
+    earthlyBranch: item.earthlyBranch,
+    mutagen: item.mutagen ?? [],
+    palaceNames: item.palaceNames ?? [],
+    landedPalace: astrolabe.palaces[item.index]?.name ?? "未知"
+  });
+
+  const dailyNames: string[] = horoscope.daily.palaceNames ?? [];
+  const dailyStars = horoscope.daily.stars ?? [];
+
+  const palaceStars: Record<string, string[]> = {};
+  const palaceDailyStars: Record<string, string[]> = {};
+  const palaceOriginName: Record<string, string> = {};
+  const palaceMutagen: Record<string, Array<{ star: string; mutagen: string }>> = {};
+
+  const mutagenOf = (star: string): { star: string; mutagen: string } | null => {
+    const i = (horoscope.daily.mutagen ?? []).indexOf(star);
+    return i >= 0 ? { star, mutagen: MUTAGEN_CN[i] } : null;
+  };
+
+  astrolabe.palaces.forEach((p, i) => {
+    const jp = dailyNames[i];
+    if (!jp) return;
+    const major = (p.majorStars ?? []).map((s) => s.name ?? "");
+    const minor = (p.minorStars ?? []).map((s) => s.name ?? "");
+    palaceStars[jp] = major;
+    palaceDailyStars[jp] = (dailyStars[i] ?? []).map((s) => s.name ?? "");
+    palaceOriginName[jp] = p.name ?? "";
+    palaceMutagen[jp] = [...major, ...minor]
+      .map(mutagenOf)
+      .filter((x): x is { star: string; mutagen: string } => x !== null);
+  });
+
+  const stars = horoscope.daily.mutagen ?? ["", "", "", ""];
+  const locate = (star: string): string[] => {
+    if (!star) return [];
+    const res: string[] = [];
+    astrolabe.palaces.forEach((p, i) => {
+      const all = [...(p.majorStars ?? []), ...(p.minorStars ?? [])];
+      if (all.some((s) => s.name === star) && dailyNames[i]) res.push(dailyNames[i]);
+    });
+    return res;
+  };
+
+  const mutagenPalaces = {
+    lu: locate(stars[0]),
+    quan: locate(stars[1]),
+    ke: locate(stars[2]),
+    ji: locate(stars[3])
+  };
+
+  const landed = astrolabe.palaces[horoscope.daily.index]?.name ?? "";
+  const soulStars = palaceStars[landed] ?? [];
+
+  return {
+    targetDate,
+    solarDate: horoscope.solarDate,
+    lunarDate: horoscope.lunarDate,
+    nominalAge: horoscope.age.nominalAge,
+
+    decadal: toView(horoscope.decadal),
+    yearly: toView(horoscope.yearly),
+    monthly: toView(horoscope.monthly),
+    daily: toView(horoscope.daily),
+    hourly: toView(horoscope.hourly),
+
+    mutagenStars: {
+      lu: stars[0] ?? "",
+      quan: stars[1] ?? "",
+      ke: stars[2] ?? "",
+      ji: stars[3] ?? ""
+    },
+    mutagenPalaces,
+    soulStars,
+    palaceStars,
+    palaceDailyStars,
+    palaceOriginName,
+    palaceMutagen,
+
+    disclaimer: DISCLAIMER
+  };
+}
+
+/** 供规则引擎使用：把流日盘摊成扁平事实表 */
+export function ziweiDailyFacts(view: ZiweiDailyResult): Record<string, unknown> {
+  const facts: Record<string, unknown> = {
+    流日命宫: view.daily.landedPalace ? `${view.daily.landedPalace}宫` : "",
+    流日命宫星: view.soulStars,
+    流日干支: `${view.daily.heavenlyStem}${view.daily.earthlyBranch}`,
+    流日化禄: view.mutagenStars.lu,
+    流日化权: view.mutagenStars.quan,
+    流日化科: view.mutagenStars.ke,
+    流日化忌: view.mutagenStars.ji,
+    流日四大运限: view.decadal.name
+  };
+
+  MUTAGEN_KEYS.forEach((k, i) => {
+    facts[`流日化${MUTAGEN_CN[i]}宫`] = view.mutagenPalaces[k];
+  });
+
+  for (const [jpName, palaceStars] of Object.entries(view.palaceStars)) {
+    // jpName 形如「命宫」「财帛」；统一补成「流日XX宫…」的事实键
+    const base = `流日${jpName.endsWith("宫") ? jpName : `${jpName}宫`}`;
+    facts[`${base}星`] = palaceStars;
+    facts[`${base}流星`] = view.palaceDailyStars[jpName] ?? [];
+    for (const key of MUTAGEN_KEYS) {
+      const mu = MUTAGEN_CN[MUTAGEN_KEYS.indexOf(key)];
+      const hit = (view.palaceMutagen[jpName] ?? []).find((m) => m.mutagen === mu);
+      if (hit) facts[`${base}化${mu}`] = hit.star;
+    }
+  }
+
+  return facts;
 }

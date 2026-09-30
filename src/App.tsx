@@ -1,5 +1,6 @@
 import { HashRouter, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import Home from "./pages/Home";
+import LiuRi from "./pages/LiuRi";
 import ZiWei from "./pages/ZiWei";
 import BaZi from "./pages/BaZi";
 import MeiHua from "./pages/MeiHua";
@@ -13,11 +14,13 @@ import {
   IconHome,
   IconPillars,
   IconSliders,
-  IconSparkle
+  IconSparkle,
+  IconSun
 } from "./components/icons";
 
 const NAV = [
   { to: "/", label: "首页", Icon: IconHome },
+  { to: "/liuri", label: "流日黄历", Icon: IconSun },
   { to: "/lifa", label: "历法转换", Icon: IconCalendar },
   { to: "/ziwei", label: "紫微斗数", Icon: IconSparkle },
   { to: "/bazi", label: "八字", Icon: IconPillars },
@@ -73,6 +76,7 @@ function Shell() {
           <div className="mx-auto w-full max-w-[1060px] px-8 pb-14 pt-7">
             <Routes>
               <Route path="/" element={<Home />} />
+              <Route path="/liuri" element={<LiuRi />} />
               <Route path="/lifa" element={<LiFa />} />
               <Route path="/ziwei" element={<ZiWei />} />
               <Route path="/bazi" element={<BaZi />} />

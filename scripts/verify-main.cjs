@@ -119,6 +119,33 @@ app.whenReady().then(async () => {
       out.horoscope = hs.ok ? hs.data.decadal.heavenlyStem + hs.data.decadal.earthlyBranch + " / 大限 " + hs.data.decadalList.length + " 个 / 流月 " + (hs.data.monthly.mutagen || []).join("") : hs.error;
       const li = await call("calendar:convert", { year: 1990, month: 1, day: 1, hour: 12, minute: 30 });
       out.calendar = li.ok ? li.data.lunar + " / " + li.data.ganZhi.year : li.error;
+
+      // M4 流日：纯黄历
+      const d1 = await call("daily:fortune", { year: 2026, month: 9, day: 30 });
+      out.dailyPlain = d1.ok
+        ? [d1.data.huangli.dayInGanZhi, d1.data.huangli.zhiXing + "日", d1.data.huangli.xiu.name + "宿",
+           "吉时" + d1.data.huangli.luckyHourCount, "事项" + d1.data.advice.length].join(" / ")
+        : d1.error;
+      out.dailyPlainGroups = d1.ok
+        ? Object.entries(d1.data.groups).map(([k, v]) => k + ":" + v.length).join(" ")
+        : "-";
+
+      // M4 流日：叠加个人命盘（走真太阳时）
+      const d2 = await call("daily:fortune", {
+        year: 2026, month: 9, day: 30,
+        birth: { gender: "男", year: 1990, month: 1, day: 1, hour: 12, minute: 30, city: "孝感", useTrueSolar: true }
+      });
+      out.dailyPersonal = d2.ok
+        ? ["生肖" + d2.data.personal.shengXiao, "冲煞=" + d2.data.personal.clashToday,
+           "日主" + d2.data.bazi.dayMaster + d2.data.bazi.dayMasterWuXing,
+           "流日命宫" + d2.data.ziwei.daily.landedPalace + "宫",
+           "化忌" + d2.data.ziwei.mutagenStars.ji,
+           "事项" + d2.data.advice.length].join(" / ")
+        : d2.error;
+      out.dailyPersonalMeta = d2.ok && d2.data.meta ? d2.data.meta.birth.trueSolarTime : null;
+      out.dailyRuleHits = d2.ok
+        ? d2.data.advice.filter((a) => a.system === "rule").map((a) => a.source).join(",")
+        : "-";
       return out;
     })()`)
     .catch((e) => ({ probeError: String(e) }));

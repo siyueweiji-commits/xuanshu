@@ -99,6 +99,17 @@ export function IconDownload({ className }: { className?: string }) {
   );
 }
 
+/** 流日：日出地平线 */
+export function IconSun({ className }: { className?: string }) {
+  return (
+    <Glyph className={className}>
+      <circle cx="8" cy="8.6" r="3.1" />
+      <path d="M8 2.2v1.3M8 13.7v.1M13.4 8.6h-1.3M3.9 8.6H2.6M11.8 4.8l-.9.9M5.1 12.3l-.9.9M11.8 12.3l-.9-.9M5.1 4.8l-.9-.9" />
+      <path d="M2.6 14h10.8" />
+    </Glyph>
+  );
+}
+
 export function IconChevron({ className }: { className?: string }) {
   return (
     <Glyph className={className}>

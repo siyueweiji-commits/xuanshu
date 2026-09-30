@@ -17,6 +17,8 @@ export interface Rule {
   weight?: number;
   level?: string;
   tags?: string[];
+  /** 面向用户展示的来源标签，缺省时回退到 system 的中文名 */
+  label?: string;
   enabled?: boolean;
 }
 
@@ -29,7 +31,13 @@ export function builtinRulesDir(): string {
 }
 
 export function userRulesDir(): string {
-  return path.join(getDataDir(), "rules");
+  // 渲染层/纯 Node 环境下 electron.app 不可用，此时降级为「无用户规则」，
+  // 内置规则仍可正常读取（内置目录只依赖 __dirname）。
+  try {
+    return path.join(getDataDir(), "rules");
+  } catch {
+    return "";
+  }
 }
 
 function readRuleFile(file: string): Rule[] {
@@ -62,15 +70,28 @@ export function listRules(system?: string): Rule[] {
   return system ? all.filter((r) => r.system === system) : all;
 }
 
-/** 事实匹配：condition 的每个 key 须在 facts 中命中（精确相等或数组包含） */
+/**
+ * 单条事实命中判断，支持四种组合：
+ *   - 条件为数组、事实为标量 → 任一条件值命中即可（OR）
+ *   - 条件为标量、事实为数组 → 事实包含该值即可（如「宜」是列表，条件是「开市」）
+ *   - 均为数组            → 有交集即可
+ *   - 均为标量            → 精确相等
+ */
+function hit(fact: unknown, cond: unknown): boolean {
+  if (Array.isArray(cond)) {
+    return Array.isArray(fact)
+      ? cond.some((c) => fact.includes(c))
+      : cond.some((c) => hit(fact, c));
+  }
+  if (Array.isArray(fact)) return fact.includes(cond);
+  return fact === cond;
+}
+
+/** 事实匹配：condition 的每个 key 须在 facts 中命中 */
 export function matchRules(rules: Rule[], facts: Record<string, unknown>): Rule[] {
   return rules
     .filter((r) => r.enabled !== false)
-    .filter((r) =>
-      Object.entries(r.condition ?? {}).every(([k, v]) =>
-        Array.isArray(v) ? v.includes(facts[k]) : facts[k] === v
-      )
-    )
+    .filter((r) => Object.entries(r.condition ?? {}).every(([k, v]) => hit(facts[k], v)))
     .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0));
 }
 

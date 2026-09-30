@@ -48,6 +48,14 @@ const MAX_STRIPS = 6;
  */
 const PAGES = [
   { key: "home", hash: "#/", title: "首页" },
+  { key: "liuri", hash: "#/liuri", title: "流日黄历" },
+  {
+    key: "liuri-personal",
+    hash: "#/liuri",
+    title: "流日黄历·叠加命盘",
+    pre: `(() => { const c = [...document.querySelectorAll('input[type=checkbox]')].find(x => x.parentElement.textContent.includes('叠加个人命盘')); c && c.click(); return 'ok'; })()`,
+    click: "查询"
+  },
   { key: "lifa", hash: "#/lifa", title: "历法转换", click: "换算" },
   {
     key: "ziwei",

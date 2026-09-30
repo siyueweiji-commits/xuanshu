@@ -3,6 +3,8 @@ dist/
 dist-electron/
 release/
 .uishot/
+.verify-userdata/
+.tmp-*
 *.log
 .DS_Store
 Thumbs.db
