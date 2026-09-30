@@ -1,129 +1,396 @@
 /**
- * 梅花易数（自研基础版）
- * 先天数：乾1 兑2 离3 震4 巽5 坎6 艮7 坤8
- * 上卦 = (年支序 + 月 + 日) % 8；下卦 = (年支序 + 月 + 日 + 时辰序) % 8；动爻 = 总和 % 6
- * M6 将补充：互卦/错卦/综卦全量、体用生克细则、规则库解读
+ * 梅花易数（M6 完整版）
+ *
+ * 三种起卦法：
+ *   1. 时间起卦　上卦=(年支序+月+日)%8　下卦=(年支序+月+日+时辰序)%8　动爻=总和%6
+ *   2. 数字起卦　两数分作上下卦，动爻取两数之和 %6
+ *   3. 报数起卦　三数：数一=上卦、数二=下卦、数三=动爻
+ *
+ * 体用判定（**传统定则，勿弄反**）：
+ *   「动爻所在之卦为用卦，另一卦为体卦」——体代表自己与主体，用代表所占之事。
+ *   动爻在初/二/三爻 → 下卦为用、上卦为体；动爻在四/五/上爻 → 上卦为用、下卦为体。
+ *
+ * 输出：本卦 / 互卦 / 变卦 / 错卦 / 综卦、体用生克、逐爻明细、规则库解读。
  */
+import {
+  HexagramView,
+  RelationInfo,
+  changedLines,
+  hexagramOfLines,
+  linesToUpperLower,
+  mutualLines,
+  oppositeLines,
+  relationInfo,
+  reversedLines,
+  trigram,
+  upperLowerToLines,
+  yaoTitle
+} from "./bagua";
+import { matchRules, DISCLAIMER, Rule, listRules } from "./rules";
 
-export const TRIGRAMS: Record<number, { name: string; symbol: string; wuxing: string }> = {
-  1: { name: "乾", symbol: "☰", wuxing: "金" },
-  2: { name: "兑", symbol: "☱", wuxing: "金" },
-  3: { name: "离", symbol: "☲", wuxing: "火" },
-  4: { name: "震", symbol: "☳", wuxing: "木" },
-  5: { name: "巽", symbol: "☴", wuxing: "木" },
-  6: { name: "坎", symbol: "☵", wuxing: "水" },
-  7: { name: "艮", symbol: "☶", wuxing: "土" },
-  8: { name: "坤", symbol: "☷", wuxing: "土" }
+export const MEIHUA_MODES = ["time", "numbers", "baoshu"] as const;
+export type MeihuaMode = (typeof MEIHUA_MODES)[number];
+
+export const MEIHUA_MODE_NAMES: Record<MeihuaMode, string> = {
+  time: "时间起卦",
+  numbers: "数字起卦",
+  baoshu: "报数起卦"
 };
 
-/** 六十四卦名表：GUA_NAMES[上卦先天数][下卦先天数] = 卦名 */
-export const GUA_NAMES: Record<number, Record<number, string>> = {
-  1: { 1: "乾为天", 2: "天泽履", 3: "天火同人", 4: "天雷无妄", 5: "天风姤", 6: "天水讼", 7: "天山遁", 8: "天地否" },
-  2: { 1: "泽天夬", 2: "兑为泽", 3: "泽火革", 4: "泽雷随", 5: "泽风大过", 6: "泽水困", 7: "泽山咸", 8: "泽地萃" },
-  3: { 1: "火天大有", 2: "火泽睽", 3: "离为火", 4: "火雷噬嗑", 5: "火风鼎", 6: "火水未济", 7: "火山旅", 8: "火地晋" },
-  4: { 1: "雷天大壮", 2: "雷泽归妹", 3: "雷火丰", 4: "震为雷", 5: "雷风恒", 6: "雷水解", 7: "雷山小过", 8: "雷地豫" },
-  5: { 1: "风天小畜", 2: "风泽中孚", 3: "风火家人", 4: "风雷益", 5: "巽为风", 6: "风水涣", 7: "风山渐", 8: "风地观" },
-  6: { 1: "水天需", 2: "水泽节", 3: "水火既济", 4: "水雷屯", 5: "水风井", 6: "坎为水", 7: "水山蹇", 8: "水地比" },
-  7: { 1: "山天大畜", 2: "山泽损", 3: "山火贲", 4: "山雷颐", 5: "山风蛊", 6: "山水蒙", 7: "艮为山", 8: "山地剥" },
-  8: { 1: "地天泰", 2: "地泽临", 3: "地火明夷", 4: "地雷复", 5: "地风升", 6: "地水师", 7: "地山谦", 8: "坤为地" }
-};
+/* ------------------------------------------------------------------ */
+/*  输入                                                               */
+/* ------------------------------------------------------------------ */
 
-export function hexagramName(upper: number, lower: number): string {
-  return GUA_NAMES[upper]?.[lower] ?? "未知卦";
+export interface MeihuaRequest {
+  mode: MeihuaMode;
+  question?: string;
+  /** time 模式：农历分量（由历法层提供） */
+  yearZhiIndex?: number;
+  lunarMonth?: number;
+  lunarDay?: number;
+  hourIndex?: number;
+  /** numbers / baoshu 模式 */
+  num1?: number;
+  num2?: number;
+  /** baoshu 模式：动爻数 */
+  num3?: number;
 }
 
-/** 爻位（初爻为最低位）→ 内/外卦先天数 */
-export function linesToUpperLower(lines: number[]): { upper: number; lower: number } {
-  // lines: [初爻, 二爻, 三爻, 四爻, 五爻, 上爻]，1=阳 0=阴
-  const lowerBits = (lines[0] ? 1 : 0) | (lines[1] ? 2 : 0) | (lines[2] ? 4 : 0);
-  const upperBits = (lines[3] ? 1 : 0) | (lines[4] ? 2 : 0) | (lines[5] ? 4 : 0);
-  const BITS_TO_NUMBER: Record<number, number> = {
-    7: 1, 3: 2, 5: 3, 1: 4, 6: 5, 2: 6, 4: 7, 0: 8
-  };
-  return { upper: BITS_TO_NUMBER[upperBits], lower: BITS_TO_NUMBER[lowerBits] };
-}
+/* ------------------------------------------------------------------ */
+/*  输出                                                               */
+/* ------------------------------------------------------------------ */
 
-export interface MeihuaTimeInput {
-  yearZhiIndex: number; // 年支序 1-12（子=1）
+export interface LunarCastView {
+  yearZhi: string;
+  yearZhiIndex: number;
   lunarMonth: number;
+  lunarMonthCn: string;
   lunarDay: number;
-  hourIndex: number; // 时辰序 1-12（子=1）
+  lunarDayCn: string;
+  hourZhi: string;
+  hourIndex: number;
+  /** 年支序 + 农历月 + 农历日 */
+  base: number;
+  /** 年支序 + 农历月 + 农历日 + 时辰序 */
+  total: number;
 }
 
-export interface MeihuaNumbersInput {
-  num1: number;
-  num2: number;
+export interface YaoView {
+  position: number;
+  yang: boolean;
+  changing: boolean;
+  /** 如「初九」「六三」 */
+  title: string;
 }
 
-export interface MeihuaResult {
+export interface MeihuaAdvice {
+  id: string;
+  text: string;
+  level: string;
+  weight: number;
+  system: string;
+  source: string;
+}
+
+export interface HexagramBundle {
+  name: string;
   upper: number;
   lower: number;
   upperName: string;
   lowerName: string;
-  movingLine: number; // 1-6，动爻位（1=初爻）
-  hexagram: string;
-  bodyTrigram: number;
-  useTrigram: number;
-  bodyUseRelation: string;
-  source: string;
+  upperSymbol: string;
+  lowerSymbol: string;
+  lines: number[];
+}
+
+export interface TrigramRef {
+  trigram: number;
+  name: string;
+  symbol: string;
+  wuxing: string;
+}
+
+export interface MeihuaResult {
+  mode: MeihuaMode;
+  modeName: string;
+  question: string;
+  lunar: LunarCastView | null;
+  /** 起卦所用数字（numbers：两数；baoshu：三数；time：起卦基数和） */
+  numbers: number[];
+  original: HexagramBundle;
+  mutual: HexagramBundle;
+  changed: HexagramBundle;
+  opposite: HexagramBundle;
+  reversed: HexagramBundle;
+  movingLines: number[];
+  movingLine: number;
+  body: TrigramRef;
+  use: TrigramRef;
+  /** 用卦位于「下卦」（初二三）还是「上卦」（四五六） */
+  usePart: "下卦" | "上卦";
+  relation: RelationInfo;
+  /** 变卦中「用卦所在位置」变成的新卦 */
+  changedUse: TrigramRef;
+  changedRelation: RelationInfo;
+  yaos: YaoView[];
+  advice: MeihuaAdvice[];
+  facts: Record<string, unknown>;
+  castAt: string;
   disclaimer: string;
 }
 
-const RELATIONS: Record<string, string> = {
-  "体克用": "体克用，事可成但费力，宜主动把握。",
-  "用克体": "用克体，事多阻逆，宜守不宜进，防损耗。",
-  "体生用": "体生用，有耗泄之象，付出多而回报缓。",
-  "用生体": "用生体，有进益之喜，得外助，宜顺势而为。",
-  "体用同": "体用比和，诸事顺遂，可平稳推进。"
-};
+/* ------------------------------------------------------------------ */
+/*  起卦                                                               */
+/* ------------------------------------------------------------------ */
 
-function relationBetween(body: number, use: number): string {
-  const WX: Record<number, string> = { 1: "金", 2: "金", 3: "火", 4: "木", 5: "木", 6: "水", 7: "土", 8: "土" };
-  const generates: Record<string, string> = { 木: "火", 火: "土", 土: "金", 金: "水", 水: "木" };
-  const overcomes: Record<string, string> = { 木: "土", 土: "水", 水: "火", 火: "金", 金: "木" };
-  const b = WX[body];
-  const u = WX[use];
-  if (b === u) return RELATIONS["体用同"];
-  if (overcomes[b] === u) return RELATIONS["体克用"];
-  if (overcomes[u] === b) return RELATIONS["用克体"];
-  if (generates[b] === u) return RELATIONS["体生用"];
-  return RELATIONS["用生体"];
+/** 余数取卦：0 记为 8（坤） */
+function mod8(n: number): number {
+  const r = ((n % 8) + 8) % 8;
+  return r === 0 ? 8 : r;
 }
 
-function buildResult(upper: number, lower: number, sum: number, source: string): MeihuaResult {
-  const movingLine = sum % 6 === 0 ? 6 : sum % 6;
-  const bodyTrigram = movingLine <= 3 ? lower : upper;
-  const useTrigram = movingLine <= 3 ? upper : lower;
+/** 余数取爻：0 记为 6（上爻） */
+function mod6(n: number): number {
+  const r = ((n % 6) + 6) % 6;
+  return r === 0 ? 6 : r;
+}
+
+function positiveInt(v: unknown, field: string): number {
+  const n = Math.floor(Number(v));
+  if (!Number.isFinite(n) || n <= 0) throw new Error(`${field} 须为正整数`);
+  return n;
+}
+
+interface CastCore {
+  upper: number;
+  lower: number;
+  movingLine: number;
+}
+
+function castTime(req: MeihuaRequest): { core: CastCore; lunar: LunarCastView } {
+  const yearZhiIndex = positiveInt(req.yearZhiIndex, "年支序");
+  const lunarMonth = positiveInt(Math.abs(Number(req.lunarMonth)), "农历月");
+  const lunarDay = positiveInt(req.lunarDay, "农历日");
+  const hourIndex = positiveInt(req.hourIndex, "时辰序");
+  const base = yearZhiIndex + lunarMonth + lunarDay;
+  const total = base + hourIndex;
   return {
-    upper,
-    lower,
-    upperName: TRIGRAMS[upper].name + TRIGRAMS[upper].symbol,
-    lowerName: TRIGRAMS[lower].name + TRIGRAMS[lower].symbol,
-    movingLine,
-    hexagram: hexagramName(upper, lower),
-    bodyTrigram,
-    useTrigram,
-    bodyUseRelation: relationBetween(bodyTrigram, useTrigram),
-    source,
-    disclaimer: "梅花易数结果仅供文化娱乐与自省参考，不构成任何决策建议。"
+    core: { upper: mod8(base), lower: mod8(total), movingLine: mod6(total) },
+    lunar: {
+      yearZhi: "",
+      yearZhiIndex,
+      lunarMonth,
+      lunarMonthCn: "",
+      lunarDay,
+      lunarDayCn: "",
+      hourZhi: "",
+      hourIndex,
+      base,
+      total
+    }
   };
 }
 
-/** 时间起卦（需先由历法层提供农历分量） */
-export function shijianQigua(input: MeihuaTimeInput): MeihuaResult {
-  const base = input.yearZhiIndex + input.lunarMonth + input.lunarDay;
-  const upper = ((base - 1) % 8) + 1;
-  const lower = ((base + input.hourIndex - 1) % 8) + 1;
-  const total = base + input.hourIndex;
-  return buildResult(upper, lower, total, "时间起卦");
+function castNumbers(req: MeihuaRequest): { core: CastCore; numbers: number[] } {
+  const n1 = positiveInt(req.num1, "数一");
+  const n2 = positiveInt(req.num2, "数二");
+  return {
+    core: { upper: mod8(n1), lower: mod8(n2), movingLine: mod6(n1 + n2) },
+    numbers: [n1, n2]
+  };
 }
 
-/** 数字起卦：两数分作上下卦，两数之和加时辰（此处不含时辰，用两数和取动爻） */
-export function shuziQigua(input: MeihuaNumbersInput): MeihuaResult {
-  const n1 = Math.abs(Math.floor(input.num1));
-  const n2 = Math.abs(Math.floor(input.num2));
-  if (!n1 || !n2) throw new Error("起卦数字须为正整数");
-  const upper = ((n1 - 1) % 8) + 1;
-  const lower = ((n2 - 1) % 8) + 1;
-  return buildResult(upper, lower, n1 + n2, `数字起卦（${n1}/${n2}）`);
+function castBaoshu(req: MeihuaRequest): { core: CastCore; numbers: number[] } {
+  const n1 = positiveInt(req.num1, "数一");
+  const n2 = positiveInt(req.num2, "数二");
+  const n3 = positiveInt(req.num3, "数三");
+  return {
+    core: { upper: mod8(n1), lower: mod8(n2), movingLine: mod6(n3) },
+    numbers: [n1, n2, n3]
+  };
 }
+
+/* ------------------------------------------------------------------ */
+/*  体用                                                               */
+/* ------------------------------------------------------------------ */
+
+/** 动爻所在之卦为「用」，另一卦为「体」 */
+export function bodyUseOf(
+  upper: number,
+  lower: number,
+  movingLine: number
+): { body: number; use: number; usePart: "下卦" | "上卦" } {
+  const lowerIsUse = movingLine <= 3;
+  return {
+    body: lowerIsUse ? upper : lower,
+    use: lowerIsUse ? lower : upper,
+    usePart: lowerIsUse ? "下卦" : "上卦"
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/*  装配                                                               */
+/* ------------------------------------------------------------------ */
+
+function bundle(lines: number[]): HexagramBundle {
+  const h: HexagramView = hexagramOfLines(lines);
+  return {
+    name: h.name,
+    upper: h.upper,
+    lower: h.lower,
+    upperName: h.upperName,
+    lowerName: h.lowerName,
+    upperSymbol: h.upperSymbol,
+    lowerSymbol: h.lowerSymbol,
+    lines: h.lines
+  };
+}
+
+function trigramAt(lines: number[], part: "下卦" | "上卦"): number {
+  const { upper, lower } = linesToUpperLower(lines);
+  return part === "下卦" ? lower : upper;
+}
+
+function trigramRef(num: number): TrigramRef {
+  const t = trigram(num);
+  return { trigram: num, name: t.name, symbol: t.symbol, wuxing: t.wuxing };
+}
+
+/* ------------------------------------------------------------------ */
+/*  主入口                                                             */
+/* ------------------------------------------------------------------ */
+
+export function qigua(req: MeihuaRequest): MeihuaResult {
+  const mode: MeihuaMode = MEIHUA_MODES.includes(req.mode) ? req.mode : "time";
+
+  let core: CastCore;
+  let lunar: LunarCastView | null = null;
+  let numbers: number[] = [];
+
+  if (mode === "time") {
+    const t = castTime(req);
+    core = t.core;
+    lunar = t.lunar;
+    numbers = [t.lunar.base, t.lunar.hourIndex, t.lunar.total];
+  } else if (mode === "numbers") {
+    const t = castNumbers(req);
+    core = t.core;
+    numbers = t.numbers;
+  } else {
+    const t = castBaoshu(req);
+    core = t.core;
+    numbers = t.numbers;
+  }
+
+  const lines = upperLowerToLines(core.upper, core.lower);
+  const movingLines = [core.movingLine];
+  const changed = changedLines(lines, movingLines);
+  const mutual = mutualLines(lines);
+  const opposite = oppositeLines(lines);
+  const reversed = reversedLines(lines);
+
+  const { body: bodyNum, use: useNum, usePart } = bodyUseOf(core.upper, core.lower, core.movingLine);
+  const bodyRef = trigramRef(bodyNum);
+  const useRef = trigramRef(useNum);
+  const rel = relationInfo(bodyRef.wuxing, useRef.wuxing);
+
+  const changedUseRef = trigramRef(trigramAt(changed, usePart));
+  const changedRel = relationInfo(bodyRef.wuxing, changedUseRef.wuxing);
+
+  const yaos: YaoView[] = lines.map((v, i) => ({
+    position: i + 1,
+    yang: Boolean(v),
+    changing: movingLines.includes(i + 1),
+    title: yaoTitle(i + 1, Boolean(v))
+  }));
+
+  const originalBundle = bundle(lines);
+  const facts: Record<string, unknown> = {
+    来源: MEIHUA_MODE_NAMES[mode],
+    本卦: originalBundle.name,
+    上卦: trigram(core.upper).name,
+    下卦: trigram(core.lower).name,
+    上卦五行: trigram(core.upper).wuxing,
+    下卦五行: trigram(core.lower).wuxing,
+    互卦: bundle(mutual).name,
+    变卦: bundle(changed).name,
+    错卦: bundle(opposite).name,
+    综卦: bundle(reversed).name,
+    体卦: bodyRef.name,
+    用卦: useRef.name,
+    体五行: bodyRef.wuxing,
+    用五行: useRef.wuxing,
+    体用关系: rel.kind,
+    变卦体用关系: changedRel.kind,
+    用卦位置: usePart,
+    动爻: core.movingLine,
+    动爻数: movingLines.length
+  };
+
+  const rules: Rule[] = matchRules(listRules("meihua"), facts);
+  const advice: MeihuaAdvice[] = rules
+    .map((r) => ({
+      id: r.id,
+      text: r.advice,
+      level: r.level ?? "info",
+      weight: r.weight ?? 0.3,
+      system: r.system,
+      source: r.label ?? `梅花·${r.tags?.[0] ?? "断卦"}`
+    }))
+    .sort((a, b) => b.weight - a.weight);
+
+  return {
+    mode,
+    modeName: MEIHUA_MODE_NAMES[mode],
+    question: req.question?.trim() || "未记录问题",
+    lunar,
+    numbers,
+    original: originalBundle,
+    mutual: bundle(mutual),
+    changed: bundle(changed),
+    opposite: bundle(opposite),
+    reversed: bundle(reversed),
+    movingLines,
+    movingLine: core.movingLine,
+    body: bodyRef,
+    use: useRef,
+    usePart,
+    relation: rel,
+    changedUse: changedUseRef,
+    changedRelation: changedRel,
+    yaos,
+    advice,
+    facts,
+    castAt: new Date().toISOString(),
+    disclaimer: DISCLAIMER
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/*  兼容旧调用签名                                                     */
+/* ------------------------------------------------------------------ */
+
+export function shijianQigua(input: {
+  yearZhiIndex: number;
+  lunarMonth: number;
+  lunarDay: number;
+  hourIndex: number;
+}): MeihuaResult {
+  return qigua({ mode: "time", ...input });
+}
+
+export function shuziQigua(input: { num1: number; num2: number }): MeihuaResult {
+  return qigua({ mode: "numbers", ...input });
+}
+
+export function baoshuQigua(input: { num1: number; num2: number; num3: number }): MeihuaResult {
+  return qigua({ mode: "baoshu", ...input });
+}
+
+/** 由上卦数、下卦数、动爻直接成卦（供知识库与校验脚本使用） */
+export function byTrigrams(upper: number, lower: number, movingLine: number): MeihuaResult {
+  return qigua({ mode: "baoshu", num1: upper, num2: lower, num3: movingLine });
+}
+
+/* 兼容：早期实现把卦表放在本模块，现在统一迁到 bagua.ts */
+export { GUA_NAMES, TRIGRAMS, hexagramName, linesToUpperLower } from "./bagua";

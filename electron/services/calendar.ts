@@ -335,3 +335,71 @@ export function resolveBirthTime(req: BirthTimeInput): ResolvedBirthTime {
     detail
   };
 }
+
+/* ------------------------------------------------------------------ */
+/*  起卦用历法分量（M6）                                                */
+/* ------------------------------------------------------------------ */
+
+export interface DivinationTimeParts {
+  /** 公历 YYYY-MM-DD */
+  date: string;
+  /** 公历 HH:mm */
+  time: string;
+  /** 农历年干支，如「丙午」 */
+  yearGanZhi: string;
+  /** 年支名，如「午」 */
+  yearZhi: string;
+  /** 年支序 1..12（子 = 1），梅花时间起卦用 */
+  yearZhiIndex: number;
+  /** 农历月（闰月取绝对值） */
+  lunarMonth: number;
+  lunarMonthCn: string;
+  lunarDay: number;
+  lunarDayCn: string;
+  /** 农历文本，如「八月二十」 */
+  lunarText: string;
+  /** 时辰支，如「未」 */
+  hourZhi: string;
+  /** 时辰序 1..12（子 = 1），梅花时间起卦用 */
+  hourIndex: number;
+  /** 时辰名，如「未时」 */
+  hourName: string;
+  /** 日干支，如「丁未」 */
+  dayGanZhi: string;
+  /** 月干支，如「丁酉」 */
+  monthGanZhi: string;
+  /** 年干支（以立春为界） */
+  yearGanZhiExact: string;
+}
+
+/**
+ * 取某一时刻的农历 / 干支分量，供梅花「时间起卦」与六爻「六神 / 旬空 / 月建日辰」使用。
+ * 年支序与时辰序都换算成 **1 起的传统序数**（子 = 1）。
+ */
+export function divinationTimeParts(req: CalendarRequest): DivinationTimeParts {
+  const hour = typeof req.hour === "number" && Number.isFinite(req.hour) ? req.hour : 0;
+  const minute = typeof req.minute === "number" && Number.isFinite(req.minute) ? req.minute : 0;
+  const s = Solar.fromYmdHms(req.year, req.month, req.day, hour, minute, 0);
+  const lunar = s.getLunar();
+  const monthRaw = lunar.getMonth();
+  const p2 = (n: number) => String(n).padStart(2, "0");
+
+  return {
+    date: `${s.getYear()}-${p2(s.getMonth())}-${p2(s.getDay())}`,
+    time: `${p2(hour)}:${p2(minute)}`,
+    yearGanZhi: lunar.getYearInGanZhi(),
+    yearZhi: lunar.getYearZhi(),
+    yearZhiIndex: lunar.getYearZhiIndex() + 1,
+    lunarMonth: Math.abs(monthRaw),
+    lunarMonthCn: (monthRaw < 0 ? "闰" : "") + lunar.getMonthInChinese(),
+    lunarDay: lunar.getDay(),
+    lunarDayCn: lunar.getDayInChinese(),
+    lunarText: `${monthRaw < 0 ? "闰" : ""}${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}`,
+    hourZhi: lunar.getTimeZhi(),
+    hourIndex: lunar.getTimeZhiIndex() + 1,
+    hourName: SHICHEN_NAMES[hourToTimeIndex(hour)] ?? "",
+    dayGanZhi: lunar.getDayInGanZhi(),
+    monthGanZhi: lunar.getMonthInGanZhi(),
+    yearGanZhiExact: lunar.getYearInGanZhiExact()
+  };
+}

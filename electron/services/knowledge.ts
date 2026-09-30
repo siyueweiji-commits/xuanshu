@@ -54,4 +54,58 @@ export function starBriefs(names: string[]): StarInfo[] {
 /** 清空缓存（数据更新后调用） */
 export function clearKnowledgeCache(): void {
   starCache = null;
+  guaCache = null;
+}
+
+/* ------------------------------------------------------------------ */
+/*  六十四卦释义（M6）                                                  */
+/* ------------------------------------------------------------------ */
+
+export interface GuaInfo {
+  name: string;
+  /** 上卦 */
+  upper: string;
+  /** 下卦 */
+  lower: string;
+  /** 义理简释 */
+  brief: string;
+  keywords: string[];
+}
+
+interface GuaFile {
+  version?: string;
+  hexagrams?: GuaInfo[];
+}
+
+let guaCache: Map<string, GuaInfo> | null = null;
+
+function loadGua(): Map<string, GuaInfo> {
+  if (guaCache) return guaCache;
+  const map = new Map<string, GuaInfo>();
+  try {
+    const file = path.join(builtinKnowledgeDir(), "gua.json");
+    const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as GuaFile;
+    for (const g of parsed.hexagrams ?? []) {
+      if (g && typeof g.name === "string") map.set(g.name, g);
+    }
+  } catch {
+    /* 知识库缺失时静默降级 */
+  }
+  guaCache = map;
+  return map;
+}
+
+/** 按卦名取释义（取不到返回 null） */
+export function guaBrief(name: string): GuaInfo | null {
+  return loadGua().get(name) ?? null;
+}
+
+/** 批量取卦释义，跳过未知卦名 */
+export function guaBriefs(names: string[]): GuaInfo[] {
+  return names.map((n) => guaBrief(n)).filter((g): g is GuaInfo => g !== null);
+}
+
+/** 知识库条目总数（供校验与设置页展示） */
+export function knowledgeStats(): { stars: number; hexagrams: number } {
+  return { stars: loadStars().size, hexagrams: loadGua().size };
 }

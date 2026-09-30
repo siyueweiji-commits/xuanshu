@@ -209,6 +209,56 @@ app.whenReady().then(async () => {
       out.reportDelete = rd && rd.ok ? "deleted=" + rd.data.deleted : (rd ? rd.error : "-");
       if (pid) await call("report:clear", { profileId: pid });
       if (pid) await call("profile:delete", { id: pid });
+
+      // M6 梅花：三法起卦
+      const m1 = await call("divination:meihua", { mode: "time", datetime: "2026-09-30 14:30" });
+      out.meihuaTime = m1.ok
+        ? [m1.data.original.name, "动" + m1.data.movingLine, "体" + m1.data.body.name + "用" + m1.data.use.name,
+           m1.data.relation.kind, "解读" + m1.data.advice.length,
+           "历法" + m1.data.timeParts.lunarText + "/" + m1.data.timeParts.hourName].join(" / ")
+        : m1.error;
+      const m2 = await call("divination:meihua", { mode: "numbers", num1: 3, num2: 7 });
+      out.meihuaNumbers = m2.ok
+        ? [m2.data.original.name, "互" + m2.data.mutual.name, "变" + m2.data.changed.name,
+           "错" + m2.data.opposite.name, "综" + m2.data.reversed.name].join(" / ")
+        : m2.error;
+      const m3 = await call("divination:meihua", { mode: "baoshu", num1: 5, num2: 8, num3: 3 });
+      out.meihuaBaoshu = m3.ok ? m3.data.original.name + " / 动" + m3.data.movingLine : m3.error;
+
+      // M6 六爻：铜钱 + 手动录入
+      const l1 = await call("divination:liuyao", { question: "端到端验证", datetime: "2026-09-30 14:30" });
+      out.liuyaoCoins = l1.ok
+        ? [l1.data.original.name + (l1.data.changed ? "→" + l1.data.changed.name : "（静）"),
+           "世" + l1.data.shi + "应" + l1.data.ying,
+           "宫" + l1.data.meta.palace + l1.data.meta.palaceWuxing,
+           "日" + l1.data.dayGanZhi, "空" + l1.data.xunKong.join(""),
+           "解读" + l1.data.advice.length,
+           "首爻" + l1.data.lines[0].liuShen + l1.data.lines[0].liuQin + l1.data.lines[0].ganZhi].join(" / ")
+        : l1.error;
+      const l2 = await call("divination:liuyao", {
+        mode: "manual",
+        datetime: "2026-09-30 14:30",
+        manualLines: [1, 1, 1, 1, 1, 1].map((v, i) => ({ value: v, changing: i === 0 }))
+      });
+      out.liuyaoManual = l2.ok
+        ? [l2.data.original.name + "→" + l2.data.changed.name, "动爻" + l2.data.movingLines.join(","),
+           "六冲" + l2.data.isChong, "世6应3=" + (l2.data.shi === 6 && l2.data.ying === 3),
+           "上爻" + l2.data.lines[5].ganZhi].join(" / ")
+        : l2.error;
+      const l3 = await call("divination:liuyao", {
+        mode: "manual",
+        datetime: "2026-09-30 14:30",
+        manualLines: [1, 0, 0, 0, 1, 0].map((v) => ({ value: v }))
+      });
+      out.liuyaoFuShen = l3.ok
+        ? (l3.data.lines.filter((x) => x.fuShen).map((x) => "第" + x.position + "爻伏" + x.fuShen.liuQin + x.fuShen.ganZhi).join(",") || "无伏神")
+        : l3.error;
+
+      // 非法输入应被拒绝（确保错误经 IPC 正确回传，而不是静默成功）
+      const bad = await call("divination:meihua", { mode: "numbers", num1: 0, num2: 5 });
+      out.meihuaInvalidRejected = bad.ok === false;
+      const bad2 = await call("divination:liuyao", { mode: "manual", manualLines: [{ value: 1 }] });
+      out.liuyaoInvalidRejected = bad2.ok === false;
       return out;
     })()`)
     .catch((e) => ({ probeError: String(e) }));

@@ -158,17 +158,62 @@ const HANDLERS = {
     };
   },
 
-  "divination:meihua": (o) =>
-    str(o, "mode") === "numbers"
-      ? meihua.shuziQigua({ num1: num(o, "num1"), num2: num(o, "num2") })
-      : meihua.shijianQigua({
-          yearZhiIndex: num(o, "yearZhiIndex", 1),
-          lunarMonth: num(o, "lunarMonth", 1),
-          lunarDay: num(o, "lunarDay", 1),
-          hourIndex: num(o, "hourIndex", 1)
-        }),
+  "divination:meihua": (o) => {
+    const mode = ["time", "numbers", "baoshu"].includes(str(o, "mode")) ? str(o, "mode") : "time";
+    const req = { mode, question: str(o, "question") };
+    if (mode === "time") {
+      const m = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}):(\d{1,2}))?/.exec(str(o, "datetime"));
+      const now = new Date();
+      const parts = calendar.divinationTimeParts(
+        m
+          ? { year: +m[1], month: +m[2], day: +m[3], hour: m[4] ? +m[4] : 0, minute: m[5] ? +m[5] : 0 }
+          : { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate(), hour: now.getHours(), minute: now.getMinutes() }
+      );
+      req.yearZhiIndex = parts.yearZhiIndex;
+      req.lunarMonth = parts.lunarMonth;
+      req.lunarDay = parts.lunarDay;
+      req.hourIndex = parts.hourIndex;
+      const r = meihua.qigua(req);
+      return {
+        ...r,
+        lunar: {
+          ...r.lunar,
+          yearZhi: parts.yearZhi,
+          lunarMonthCn: parts.lunarMonthCn,
+          lunarDayCn: parts.lunarDayCn,
+          hourZhi: parts.hourZhi
+        },
+        timeParts: parts
+      };
+    }
+    req.num1 = num(o, "num1");
+    req.num2 = num(o, "num2");
+    if (mode === "baoshu") req.num3 = num(o, "num3");
+    return meihua.qigua(req);
+  },
 
-  "divination:liuyao": (o) => liuyao.qigua({ question: str(o, "question") }),
+  "divination:liuyao": (o) => {
+    const mode = str(o, "mode") === "manual" ? "manual" : "coins";
+    const req = { mode, question: str(o, "question") };
+    if (mode === "manual") {
+      req.manualLines = (Array.isArray(o.manualLines) ? o.manualLines : []).map((l) => ({
+        value: num(l, "value"),
+        changing: l && l.changing === true
+      }));
+    }
+    const m = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}):(\d{1,2}))?/.exec(str(o, "datetime"));
+    const now = new Date();
+    const parts = calendar.divinationTimeParts(
+      m
+        ? { year: +m[1], month: +m[2], day: +m[3], hour: m[4] ? +m[4] : 0, minute: m[5] ? +m[5] : 0 }
+        : { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate(), hour: now.getHours(), minute: now.getMinutes() }
+    );
+    req.dayGanZhi = parts.dayGanZhi;
+    req.dayGan = parts.dayGanZhi.slice(0, 1);
+    req.monthGanZhi = parts.monthGanZhi;
+    const r = liuyao.qigua(req);
+    return { ...r, timeParts: parts };
+  },
 
   "daily:fortune": (o) => {
     const raw = o.birth && typeof o.birth === "object" ? o.birth : null;

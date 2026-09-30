@@ -5,6 +5,7 @@ import { getDb } from "../db/database";
 import { calcZiwei, calcZiweiHoroscope, ZiweiRequest, ZiweiHoroscopeRequest } from "../services/ziwei";
 import {
   convertCalendar,
+  divinationTimeParts,
   toTrueSolarTime,
   listCities,
   resolveBirthTime,
@@ -13,8 +14,8 @@ import {
   ResolvedBirthTime
 } from "../services/calendar";
 import { calcBazi, BaziRequest } from "../services/bazi";
-import { shijianQigua, shuziQigua } from "../services/meihua";
-import { qigua } from "../services/liuyao";
+import { qigua as meihuaQigua, MEIHUA_MODES, MeihuaMode, MeihuaRequest } from "../services/meihua";
+import { qigua as liuyaoQigua, LiuyaoRequest } from "../services/liuyao";
 import { calcDaily } from "../services/daily";
 import {
   listRules,
@@ -77,6 +78,39 @@ function toYmdNow(): string {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** 解析 `YYYY-MM-DD[ T]HH:mm`；非法或空则返回当前时刻 */
+function parseDateTime(input: string): {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+} {
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}):(\d{1,2}))?/.exec((input ?? "").trim());
+  if (m) {
+    const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    const hour = m[4] === undefined ? 0 : Number(m[4]);
+    const minute = m[5] === undefined ? 0 : Number(m[5]);
+    if (
+      year >= 1900 && year <= 2200 &&
+      month >= 1 && month <= 12 &&
+      day >= 1 && day <= 31 &&
+      hour >= 0 && hour <= 23 &&
+      minute >= 0 && minute <= 59
+    ) {
+      return { year, month, day, hour, minute };
+    }
+  }
+  const d = new Date();
+  return {
+    year: d.getFullYear(),
+    month: d.getMonth() + 1,
+    day: d.getDate(),
+    hour: d.getHours(),
+    minute: d.getMinutes()
+  };
 }
 
 /** 把 IPC payload 里的 birth 对象解析成报告用的出生信息（走真太阳时） */
@@ -250,21 +284,79 @@ export function registerIpcHandlers(): void {
   // 城市经纬度（供真太阳时选择）
   handle("calendar:cities", () => listCities());
 
-  // 起卦
+  // 起卦（M6）：梅花三法起卦 / 六爻铜钱与手动录入
   handle("divination:meihua", (payload) => {
     const o = asObject(payload);
-    if (str(o, "mode") === "numbers") {
-      return shuziQigua({ num1: num(o, "num1"), num2: num(o, "num2") });
+    const modeRaw = str(o, "mode", "time");
+    const mode: MeihuaMode = (MEIHUA_MODES as readonly string[]).includes(modeRaw)
+      ? (modeRaw as MeihuaMode)
+      : "time";
+
+    const req: MeihuaRequest = { mode, question: str(o, "question") };
+
+    if (mode === "time") {
+      // 优先取显式传入的 datetime（YYYY-MM-DDTHH:mm 或带空格），否则用当前时刻
+      const dt = parseDateTime(str(o, "datetime"));
+      const parts = divinationTimeParts({
+        year: dt.year,
+        month: dt.month,
+        day: dt.day,
+        hour: dt.hour,
+        minute: dt.minute
+      });
+      req.yearZhiIndex = parts.yearZhiIndex;
+      req.lunarMonth = parts.lunarMonth;
+      req.lunarDay = parts.lunarDay;
+      req.hourIndex = parts.hourIndex;
+      const result = meihuaQigua(req);
+      return {
+        ...result,
+        lunar: {
+          ...result.lunar,
+          yearZhi: parts.yearZhi,
+          lunarMonthCn: parts.lunarMonthCn,
+          lunarDayCn: parts.lunarDayCn,
+          hourZhi: parts.hourZhi
+        },
+        timeParts: parts
+      };
     }
-    return shijianQigua({
-      yearZhiIndex: num(o, "yearZhiIndex", 1),
-      lunarMonth: num(o, "lunarMonth", 1),
-      lunarDay: num(o, "lunarDay", 1),
-      hourIndex: num(o, "hourIndex", 1)
-    });
+
+    req.num1 = num(o, "num1");
+    req.num2 = num(o, "num2");
+    if (mode === "baoshu") req.num3 = num(o, "num3");
+    return meihuaQigua(req);
   });
 
-  handle("divination:liuyao", (payload) => qigua({ question: str(asObject(payload), "question") }));
+  handle("divination:liuyao", (payload) => {
+    const o = asObject(payload);
+    const mode = str(o, "mode") === "manual" ? "manual" : "coins";
+    const req: LiuyaoRequest = { mode, question: str(o, "question") };
+
+    if (mode === "manual") {
+      const raw = Array.isArray(o.manualLines) ? o.manualLines : [];
+      req.manualLines = raw.map((item) => {
+        const l = asObject(item);
+        return { value: num(l, "value"), changing: l.changing === true };
+      });
+    }
+
+    // 用起卦时刻的干支装卦：六神按日干起、旬空按日干支推、月建取月干支
+    const dt = parseDateTime(str(o, "datetime"));
+    const parts = divinationTimeParts({
+      year: dt.year,
+      month: dt.month,
+      day: dt.day,
+      hour: dt.hour,
+      minute: dt.minute
+    });
+    req.dayGanZhi = parts.dayGanZhi;
+    req.dayGan = parts.dayGanZhi.slice(0, 1);
+    req.monthGanZhi = parts.monthGanZhi;
+
+    const result = liuyaoQigua(req);
+    return { ...result, timeParts: parts };
+  });
 
   // 规则库
   handle("rules:list", (payload) => listRules(str(asObject(payload), "system") || undefined));

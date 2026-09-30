@@ -66,7 +66,22 @@ const PAGES = [
   },
   { key: "bazi", hash: "#/bazi", title: "八字", click: "排盘" },
   { key: "meihua", hash: "#/meihua", title: "梅花易数", click: "起卦" },
+  {
+    key: "meihua-baoshu",
+    hash: "#/meihua",
+    title: "梅花·报数起卦",
+    pre: `(() => { const s = [...document.querySelectorAll('.seg-item')].find(x => x.textContent.trim() === '报数起卦'); s && s.click(); return 'ok'; })()`,
+    click: "起卦"
+  },
   { key: "liuyao", hash: "#/liuyao", title: "六爻", click: "掷铜钱起卦" },
+  {
+    key: "liuyao-manual",
+    hash: "#/liuyao",
+    title: "六爻·手动录入",
+    pre: `(() => { const s = [...document.querySelectorAll('.seg-item')].find(x => x.textContent.trim() === '手动录入'); s && s.click();
+      return 'ok'; })()`,
+    click: "按录入装卦"
+  },
   { key: "report", hash: "#/report", title: "报告·单日", click: "生成报告" },
   {
     key: "report-range",
