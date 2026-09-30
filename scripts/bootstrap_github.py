@@ -723,6 +723,23 @@ def main() -> int:
     if login != OWNER:
         print(f"[!] 注意：当前 PAT 属于 `{login}`，而目标仓库属于 `{OWNER}`，请确认无误。")
 
+    # 预检仓库写权限：GitHub 对无权限的写操作会伪装成 404（而非 403）。
+    # 不提前探测的话，要等 git push / API 推到一半才能发现令牌没勾 repo。
+    st_probe, resp_probe = api(
+        token, "POST", f"/repos/{OWNER}/{MAIN_REPO}/git/blobs",
+        {"content": base64.b64encode(b"xuanshu write-probe").decode("ascii"), "encoding": "base64"},
+    )
+    if st_probe != 201:
+        kind = "fine-grained" if token.startswith("github_pat_") else "classic"
+        die(
+            f"令牌没有 {OWNER}/{MAIN_REPO} 的写权限（GitHub 把无权限伪装成 HTTP {st_probe}）。\n"
+            "    当前令牌是 " + kind + " 类型。请到 https://github.com/settings/tokens 重新生成：\n"
+            "      · classic 令牌：必须同时勾选 `repo` 与 `workflow` 两个 scope；\n"
+            "      · fine-grained 令牌：Repository access 选中这两个仓库，\n"
+            "        且 Permissions 里给 Contents 与 Workflows 都开 Read and write。"
+        )
+    ok("令牌具备仓库写权限")
+
     results: list[tuple[str, bool]] = []
 
     if args.only != "issues":
