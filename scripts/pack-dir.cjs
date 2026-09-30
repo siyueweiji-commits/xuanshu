@@ -29,8 +29,22 @@ function stamp() {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
-/** 每次都用没人用过的新目录，避免触发「清空目录」 */
-const outDir = `release/dir-${stamp()}`;
+/** 输出目录：默认固定同一个（用户拿到的永远只有一个文件夹）；
+ *  旧目录删不掉时（安全软件/权限）退回时间戳目录，不让打包失败。 */
+function makeOutDir() {
+  const fixed = "release/XuanShu-portable";
+  const full = path.join(ROOT, fixed);
+  if (fs.existsSync(full)) {
+    try {
+      fs.rmSync(full, { recursive: true, force: true });
+    } catch {
+      return `release/dir-${stamp()}`;
+    }
+  }
+  return fixed;
+}
+
+const outDir = makeOutDir();
 
 /** 本机 electron-builder 会去 GitHub 下载 Electron；若本地已有 dist 就直接用 */
 function localElectronDist() {
