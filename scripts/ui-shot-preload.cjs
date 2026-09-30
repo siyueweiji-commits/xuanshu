@@ -15,6 +15,8 @@ const bazi = require(path.join(SVC, "bazi.js"));
 const meihua = require(path.join(SVC, "meihua.js"));
 const liuyao = require(path.join(SVC, "liuyao.js"));
 const daily = require(path.join(SVC, "daily.js"));
+const rules = require(path.join(SVC, "rules.js"));
+const report = require(path.join(SVC, "report.js"));
 
 function asObject(p) {
   return p && typeof p === "object" ? p : {};
@@ -197,7 +199,76 @@ const HANDLERS = {
   "export:image": () => ({
     saved: true,
     path: path.join("C:\\Users", "Pictures", "XuanShu", "紫微命盘-1990-01-01-20260101120000.png")
-  })
+  }),
+
+  /* ---------- M5：规则库 / 模板 / 报告 ---------- */
+
+  "rules:overview": () => rules.rulesOverview(),
+  "rules:list": (o) => rules.listRules(str(o, "system") || undefined),
+  "rules:toggle": (o) => ({ changed: rules.setRuleEnabled(str(o, "id"), o.enabled !== false) }),
+  "rules:remove": () => ({ removed: true }),
+  "rules:export": (o) => {
+    const json = rules.exportRules(str(o, "system") || undefined);
+    return { system: str(o, "system", "all"), json, count: JSON.parse(json).rules.length };
+  },
+  "rules:import": () => ({ imported: 3, skipped: 0, systems: ["custom"] }),
+
+  "templates:list": () => report.listTemplates(),
+
+  "report:build": (o) => {
+    const raw = o.birth && typeof o.birth === "object" ? o.birth : null;
+    const req = { scope: str(o, "scope") === "range" ? "range" : "daily", date: str(o, "date") };
+    if (typeof o.days === "number") req.days = o.days;
+    if (str(o, "templateId")) req.templateId = str(o, "templateId");
+    req.profileName = str(o, "profileName", "本人生辰");
+    if (raw && typeof raw.year === "number" && Number.isFinite(raw.year)) {
+      const b = calendar.resolveBirthTime(birthInput(raw));
+      req.birth = {
+        gender: str(raw, "gender", "男"),
+        year: b.year,
+        month: b.month,
+        day: b.day,
+        timeIndex: b.timeIndex,
+        hour: b.hour,
+        minute: b.minute,
+        calendar: str(raw, "calendar", "solar")
+      };
+    }
+    return report.buildReport(req);
+  },
+  "report:save": () => ({ id: 7 }),
+  "report:list": () => [
+    {
+      id: 7,
+      profile_id: null,
+      scope: "daily",
+      template_id: "daily_report",
+      title: "流日参考报告 · 2026-09-30",
+      date_from: "2026-09-30",
+      date_to: "2026-09-30",
+      created_at: "2026-09-30 12:52:10",
+      summary: { adviceCount: 10 }
+    },
+    {
+      id: 6,
+      profile_id: null,
+      scope: "range",
+      template_id: "range_report",
+      title: "流日区间报告 · 2026-09-28 ~ 2026-10-04",
+      date_from: "2026-09-28",
+      date_to: "2026-10-04",
+      created_at: "2026-09-30 12:40:02",
+      summary: { days: 7, totalAdvice: 70 }
+    }
+  ],
+  "report:get": () => ({ content_md: "" }),
+  "report:delete": () => ({ deleted: true }),
+  "report:clear": () => ({ removed: 0 }),
+  "report:export": () => ({
+    saved: true,
+    path: path.join("C:\\Users", "Documents", "XuanShu", "流日参考报告-20260930125210.md")
+  }),
+  "daily:saved": () => null
 };
 
 contextBridge.exposeInMainWorld("xuanshu", {

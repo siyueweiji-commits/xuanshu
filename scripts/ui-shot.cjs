@@ -67,6 +67,16 @@ const PAGES = [
   { key: "bazi", hash: "#/bazi", title: "八字", click: "排盘" },
   { key: "meihua", hash: "#/meihua", title: "梅花易数", click: "起卦" },
   { key: "liuyao", hash: "#/liuyao", title: "六爻", click: "掷铜钱起卦" },
+  { key: "report", hash: "#/report", title: "报告·单日", click: "生成报告" },
+  {
+    key: "report-range",
+    hash: "#/report",
+    title: "报告·区间含命盘",
+    pre: `(() => { const s = [...document.querySelectorAll('.seg-item')].find(x => x.textContent.trim() === '区间'); s && s.click();
+      const c = [...document.querySelectorAll('input[type=checkbox]')].find(x => x.parentElement.textContent.includes('叠加个人命盘')); c && c.click();
+      return 'ok'; })()`,
+    click: "生成报告"
+  },
   { key: "settings", hash: "#/settings", title: "设置" }
 ];
 

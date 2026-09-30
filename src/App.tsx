@@ -6,9 +6,11 @@ import BaZi from "./pages/BaZi";
 import MeiHua from "./pages/MeiHua";
 import LiuYao from "./pages/LiuYao";
 import LiFa from "./pages/LiFa";
+import Report from "./pages/Report";
 import Settings from "./pages/Settings";
 import {
   IconCalendar,
+  IconDoc,
   IconFlower,
   IconHexagram,
   IconHome,
@@ -26,6 +28,7 @@ const NAV = [
   { to: "/bazi", label: "八字", Icon: IconPillars },
   { to: "/meihua", label: "梅花易数", Icon: IconFlower },
   { to: "/liuyao", label: "六爻", Icon: IconHexagram },
+  { to: "/report", label: "报告", Icon: IconDoc },
   { to: "/settings", label: "设置", Icon: IconSliders }
 ];
 
@@ -82,6 +85,7 @@ function Shell() {
               <Route path="/bazi" element={<BaZi />} />
               <Route path="/meihua" element={<MeiHua />} />
               <Route path="/liuyao" element={<LiuYao />} />
+              <Route path="/report" element={<Report />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </div>

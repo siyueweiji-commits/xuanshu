@@ -9,6 +9,8 @@ const ALLOWED_CHANNELS = [
   /^divination:/,
   /^rules:/,
   /^daily:/,
+  /^templates:/,
+  /^report:/,
   /^export:/
 ];
 

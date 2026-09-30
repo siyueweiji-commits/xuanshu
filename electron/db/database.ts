@@ -3,6 +3,7 @@ import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { SCHEMA_V1 } from "./migrations/001_init";
+import { SCHEMA_V2 } from "./migrations/002_reports";
 
 let db: Database.Database | null = null;
 
@@ -36,7 +37,10 @@ export function closeDatabase(): void {
 
 /** 基于 user_version 的轻量迁移：按序执行，失败即中止并抛错 */
 function migrate(database: Database.Database): void {
-  const MIGRATIONS: Array<{ version: number; sql: string }> = [{ version: 1, sql: SCHEMA_V1 }];
+  const MIGRATIONS: Array<{ version: number; sql: string }> = [
+    { version: 1, sql: SCHEMA_V1 },
+    { version: 2, sql: SCHEMA_V2 }
+  ];
   const current = (database.pragma("user_version", { simple: true }) as number) ?? 0;
 
   for (const m of MIGRATIONS) {

@@ -23,7 +23,8 @@
 | 梅花易数 | 🚧 M1 骨架 | 时间起卦 / 数字起卦 |
 | 六爻 | 🚧 M1 骨架 | 铜钱模拟起卦 |
 | 流日黄历 | ✅ M4 | 干支宜忌 / 冲煞 / 建除十二神 / 二十八宿 / 天神 / 吉神凶煞 / 方位 / 十二时辰吉凶 / 五类注意事项 |
-| 报告生成 | 🔜 M5 | 模板拼接 + 规则库约束 |
+| 规则引擎 | ✅ M5 | 35 条内置规则按事实键值命中；可在设置中逐条启停，支持导入导出 JSON，改完立即生效 |
+| 报告生成 | ✅ M5 | 零依赖模板引擎渲染 Markdown；单日 / 区间（1~90 天）报告，可选叠加个人命盘，可存档与导出 .md |
 | 反馈回测 | 🔜 M7 | 事件记录 + 命中率统计 |
 | 数据更新 | 🔜 M8 | manifest + sha256 校验 + 回滚 |
 
@@ -48,9 +49,16 @@ npm run dev        # 启动开发（Vite + Electron）
 npm run typecheck  # 类型检查
 npm run build      # 编译主进程 + 渲染进程
 npm run verify:main # 真实主进程端到端校验（SQLite ABI / IPC / 窗口配置）
+npm run verify:m4  # 流日 + 黄历服务层校验（含 120 天压测）
+npm run verify:m5  # 模板引擎 / 报告生成 / 规则库管理校验（含 30 天区间压测）
 npm run shot       # 用 Electron 真实渲染各路由并截图到 .uishot/
 npm run dist:win   # 打包 Windows 安装包
 ```
+
+> 新增 IPC 通道时必须同时改三处：`electron/services/*.ts` 实现 →
+> `electron/ipc/index.ts` 注册 → `electron/preload.ts` 白名单前缀。
+> 白名单是前缀正则，漏改不会在 typecheck / build 阶段报错，只会在运行时抛
+> `IPC channel not allowed`。
 
 > **首次启动前**：`npm install` 只给当前 Node 装 `better-sqlite3`，
 > 天然不含 Electron ABI 的二进制，直接 `npm run dev` 会报

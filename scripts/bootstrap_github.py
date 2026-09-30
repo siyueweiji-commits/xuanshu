@@ -463,6 +463,10 @@ def push_via_git(name: str, path: Path, token: str) -> bool:
         print(f"[!] {name}: 没有任何提交，跳过")
         return False
 
+    count_code, count_out = run(["git", "-C", str(path), "rev-list", "--count", "HEAD"])
+    if count_code == 0 and count_out.strip().isdigit():
+        info(f"{name}: 本地共 {count_out.strip()} 个提交待推送")
+
     remote_url = f"https://{OWNER}:{token}@github.com/{OWNER}/{name}.git"
     info(f"{name}: 用 git 推送 {branch} 分支 ...")
     code, out = run(["git", "-C", str(path), "push", "--quiet", remote_url, f"HEAD:refs/heads/{branch}"])
@@ -476,6 +480,7 @@ def push_via_git(name: str, path: Path, token: str) -> bool:
     safe = out.replace(token, "***")           # 输出里可能带 token，脱敏
     if code == 0:
         ok(f"{name}: 推送成功（保留完整提交历史）")
+        sync_origin_ref(name, path, branch, remote_url)
         return True
 
     if "workflow" in safe and "scope" in safe:
@@ -486,6 +491,25 @@ def push_via_git(name: str, path: Path, token: str) -> bool:
 
     print(f"[!] {name}: git 推送失败\n{safe.strip()[:500]}")
     return False
+
+
+def sync_origin_ref(name: str, path: Path, branch: str, remote_url: str) -> None:
+    """
+    推送成功后同步 `origin/<branch>` 跟踪引用。
+
+    脚本是往「带 token 的临时 URL」推的（这样 token 不会写进 .git/config），
+    副作用是 git 不知道远端已更新，`git status` 会一直显示「无 origin/main」。
+    这里补一次 fetch 并设置 upstream，之后就能正常看到领先/落后几个提交。
+    """
+    code, _ = run(["git", "-C", str(path), "fetch", "--quiet", remote_url,
+                   f"{branch}:refs/remotes/origin/{branch}"])
+    if code != 0:
+        info(f"{name}: 已推送，但同步 origin/{branch} 失败（不影响远端内容）")
+        return
+    run(["git", "-C", str(path), "branch", f"--set-upstream-to=origin/{branch}", branch])
+    code, out = run(["git", "-C", str(path), "rev-list", "--count", f"origin/{branch}"])
+    if code == 0 and out.strip().isdigit():
+        info(f"{name}: 远端 {branch} 现有 {out.strip()} 个提交（origin/{branch} 已同步）")
 
 
 def push_via_api(name: str, root: Path, token: str) -> bool:

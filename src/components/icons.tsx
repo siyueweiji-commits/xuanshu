@@ -126,3 +126,13 @@ export function IconPin({ className }: { className?: string }) {
     </Glyph>
   );
 }
+
+/** 报告：带折角的文稿 */
+export function IconDoc({ className }: { className?: string }) {
+  return (
+    <Glyph className={className}>
+      <path d="M9.2 2.3H4.6a1.3 1.3 0 0 0-1.3 1.3v8.8a1.3 1.3 0 0 0 1.3 1.3h6.8a1.3 1.3 0 0 0 1.3-1.3V5.6z" />
+      <path d="M9.2 2.3v3.3h3.5M5.9 8.8h4.2M5.9 11.2h3" />
+    </Glyph>
+  );
+}

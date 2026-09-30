@@ -22,7 +22,8 @@
     "dist:win": "npm run build && electron-builder --win",
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:linux": "npm run build && electron-builder --linux",
-    "verify:m4": "node scripts/verify-m4.cjs"
+    "verify:m4": "node scripts/verify-m4.cjs",
+    "verify:m5": "node scripts/verify-m5.cjs"
   },
   "dependencies": {
     "better-sqlite3": "^11.3.0",

@@ -146,6 +146,69 @@ app.whenReady().then(async () => {
       out.dailyRuleHits = d2.ok
         ? d2.data.advice.filter((a) => a.system === "rule").map((a) => a.source).join(",")
         : "-";
+
+      // M5 规则库管理
+      const ro = await call("rules:overview");
+      out.rulesOverview = ro.ok
+        ? ro.data.total + " 条 / 生效 " + ro.data.enabled + " / 内置文件 " + ro.data.builtinFiles.length + " / 系统 " + ro.data.systems.join(",")
+        : ro.error;
+      const ex = await call("rules:export", { system: "huangli" });
+      out.rulesExport = ex.ok ? ex.data.count + " 条" : ex.error;
+      const imp = ex.ok ? await call("rules:import", { json: ex.data.json, mode: "merge" }) : null;
+      out.rulesImport = imp ? (imp.ok ? "导入 " + imp.data.imported + " 跳过 " + imp.data.skipped : imp.error) : "-";
+      // 导入会写用户覆盖文件，测完逐个删除，避免污染真实用户目录
+      if (ex.ok) {
+        const ids = (JSON.parse(ex.data.json).rules || []).map((r) => r.id);
+        let removed = 0;
+        for (const id of ids) {
+          const rr = await call("rules:remove", { id });
+          if (rr.ok && rr.data.removed) removed += 1;
+        }
+        const back = await call("rules:overview");
+        out.rulesCleanup = removed + " 条覆盖已移除 / 用户文件 " + (back.ok ? back.data.userFiles.length : "?");
+      }
+
+      // M5 模板 + 报告
+      const tl = await call("templates:list");
+      out.templates = tl.ok ? tl.data.map((t) => t.id + ":" + t.scope).join(",") : tl.error;
+
+      const r1 = await call("report:build", { scope: "daily", date: "2026-09-30", profileName: "验证档案" });
+      out.reportDaily = r1.ok
+        ? r1.data.sections.length + " 段 / " + r1.data.contentMd.length + " 字 / 免责=" + r1.data.hasDisclaimer
+        : r1.error;
+
+      const r2 = await call("report:build", {
+        scope: "range", date: "2026-09-28", days: 7,
+        birth: { gender: "男", year: 1990, month: 1, day: 1, hour: 12, minute: 30, city: "孝感", useTrueSolar: true }
+      });
+      out.reportRange = r2.ok
+        ? r2.data.range.days + " 天 / " + r2.data.range.totalAdvice + " 条 / 重点日 " + r2.data.range.keyDays.length
+        : r2.error;
+
+      // 建临时档案 → 落库 → 列表 → 详情 → 导出 → 清理
+      const pc = await call("profile:create", { name: "验证档案-M5", gender: "male", birth_time: "1990-01-01T12:30:00" });
+      const pid = pc.ok ? pc.data.id : null;
+      const d3 = pid ? await call("daily:fortune", {
+        year: 2026, month: 9, day: 30, profileId: pid,
+        birth: { gender: "男", year: 1990, month: 1, day: 1, hour: 12, minute: 30, city: "孝感", useTrueSolar: true }
+      }) : null;
+      out.dailyPersist = d3 ? (d3.ok ? "savedId=" + d3.data.savedId : d3.error) : "-";
+      const ds = pid ? await call("daily:saved", { profileId: pid, date: "2026-09-30" }) : null;
+      out.dailySaved = ds && ds.ok && ds.data ? "回读 " + (ds.data.advice || []).length + " 条建议" : "-";
+
+      const rs = await call("report:save", { result: r1.ok ? r1.data : null });
+      const rid = rs.ok ? rs.data.id : null;
+      out.reportSave = rs.ok ? "id=" + rid : rs.error;
+      const rl = await call("report:list", { limit: 5 });
+      out.reportList = rl.ok ? rl.data.length + " 条 / Top1=" + (rl.data[0] ? rl.data[0].title : "-") : rl.error;
+      const rg = rid ? await call("report:get", { id: rid }) : null;
+      out.reportGet = rg && rg.ok ? rg.data.content_md.length + " 字 / data.summary=" + JSON.stringify(rg.data.data.summary) : (rg ? rg.error : "-");
+      const rx = rid ? await call("report:export", { id: rid }) : null;
+      out.reportExport = rx && rx.ok ? rx.data.path : (rx ? rx.error : "-");
+      const rd = rid ? await call("report:delete", { id: rid }) : null;
+      out.reportDelete = rd && rd.ok ? "deleted=" + rd.data.deleted : (rd ? rd.error : "-");
+      if (pid) await call("report:clear", { profileId: pid });
+      if (pid) await call("profile:delete", { id: pid });
       return out;
     })()`)
     .catch((e) => ({ probeError: String(e) }));
