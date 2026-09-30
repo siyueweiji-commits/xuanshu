@@ -75,6 +75,84 @@ export interface ZiweiHoroscopeResult {
 export const DISCLAIMER =
   "本结果仅供文化娱乐与自省参考，不构成医疗、法律、投资或出行安全建议。";
 
+/* ---------------- 对外投影（纯数据，可结构化克隆） ---------------- */
+
+export interface ZiweiStarView {
+  name: string;
+  type: string;
+  brightness: string;
+  mutagen: string;
+}
+
+export interface ZiweiPalaceView {
+  index: number;
+  name: string;
+  isBodyPalace: boolean;
+  isOriginalPalace: boolean;
+  heavenlyStem: string;
+  earthlyBranch: string;
+  majorStars: ZiweiStarView[];
+  minorStars: ZiweiStarView[];
+  adjectiveStars: Array<{ name: string; type: string }>;
+  changsheng12: string;
+  decadalRange: number[];
+  ages: number[];
+}
+
+export interface ZiweiChartView {
+  solarDate: string;
+  lunarDate: string;
+  chineseDate: string;
+  time: string;
+  timeRange: string;
+  sign: string;
+  zodiac: string;
+  earthlyBranchOfSoulPalace: string;
+  earthlyBranchOfBodyPalace: string;
+  soul: string;
+  body: string;
+  fiveElementsClass: string;
+  palaces: ZiweiPalaceView[];
+}
+
+interface RawStar {
+  name?: string;
+  type?: string;
+  brightness?: string;
+  mutagen?: string;
+}
+
+interface RawPalace {
+  index?: number;
+  name?: string;
+  isBodyPalace?: boolean;
+  isOriginalPalace?: boolean;
+  heavenlyStem?: string;
+  earthlyBranch?: string;
+  majorStars?: RawStar[];
+  minorStars?: RawStar[];
+  adjectiveStars?: RawStar[];
+  changsheng12?: string;
+  ages?: number[];
+  decadal?: { range?: number[] };
+}
+
+interface RawAstrolabe {
+  solarDate?: string;
+  lunarDate?: string;
+  chineseDate?: string;
+  time?: string;
+  timeRange?: string;
+  sign?: string;
+  zodiac?: string;
+  earthlyBranchOfSoulPalace?: string;
+  earthlyBranchOfBodyPalace?: string;
+  soul?: string;
+  body?: string;
+  fiveElementsClass?: string;
+  palaces?: RawPalace[];
+}
+
 /** 排本命盘（solar / lunar 两种入口） */
 function buildAstrolabe(req: ZiweiRequest) {
   const dateStr = `${req.year}-${req.month}-${req.day}`;
@@ -86,9 +164,56 @@ function buildAstrolabe(req: ZiweiRequest) {
   return astro.bySolar(dateStr, req.timeIndex, gender, true, "zh-CN");
 }
 
-/** 本命盘排盘（M1 行为保持不变） */
-export function calcZiwei(req: ZiweiRequest): unknown {
-  return buildAstrolabe(req);
+/** 星曜 → 纯对象（丢弃 iztro 实例上的方法与 getter） */
+function starView(s: RawStar): ZiweiStarView {
+  return {
+    name: s.name ?? "",
+    type: s.type ?? "",
+    brightness: s.brightness ?? "",
+    mutagen: s.mutagen ?? ""
+  };
+}
+
+/**
+ * 本命盘排盘。
+ *
+ * 注意：iztro 返回的是带方法的类实例，直接经 ipcMain 回传会报
+ * 「An object could not be cloned」，因此必须显式投影为纯数据。
+ */
+export function calcZiwei(req: ZiweiRequest): ZiweiChartView {
+  const raw = buildAstrolabe(req).toJSON() as RawAstrolabe;
+
+  return {
+    solarDate: raw.solarDate ?? "",
+    lunarDate: raw.lunarDate ?? "",
+    chineseDate: raw.chineseDate ?? "",
+    time: raw.time ?? "",
+    timeRange: raw.timeRange ?? "",
+    sign: raw.sign ?? "",
+    zodiac: raw.zodiac ?? "",
+    earthlyBranchOfSoulPalace: raw.earthlyBranchOfSoulPalace ?? "",
+    earthlyBranchOfBodyPalace: raw.earthlyBranchOfBodyPalace ?? "",
+    soul: raw.soul ?? "",
+    body: raw.body ?? "",
+    fiveElementsClass: raw.fiveElementsClass ?? "",
+    palaces: (raw.palaces ?? []).map((p) => ({
+      index: p.index ?? 0,
+      name: p.name ?? "",
+      isBodyPalace: Boolean(p.isBodyPalace),
+      isOriginalPalace: Boolean(p.isOriginalPalace),
+      heavenlyStem: p.heavenlyStem ?? "",
+      earthlyBranch: p.earthlyBranch ?? "",
+      majorStars: (p.majorStars ?? []).map(starView),
+      minorStars: (p.minorStars ?? []).map(starView),
+      adjectiveStars: (p.adjectiveStars ?? []).map((s) => ({
+        name: s.name ?? "",
+        type: s.type ?? ""
+      })),
+      changsheng12: p.changsheng12 ?? "",
+      decadalRange: p.decadal?.range ?? [],
+      ages: p.ages ?? []
+    }))
+  };
 }
 
 /** 运限排盘：大限 / 流年 / 流月 / 流日 / 流时 */

@@ -116,7 +116,7 @@ export function registerIpcHandlers(): void {
       calendar: str(o, "calendar", "solar") === "lunar" ? "lunar" : "solar"
     };
     return {
-      ...(calcZiwei(req) as Record<string, unknown>),
+      ...calcZiwei(req),
       meta: { birth: birthMeta(birth) }
     };
   });
@@ -132,8 +132,11 @@ export function registerIpcHandlers(): void {
       hour: birth.hour,
       minute: birth.minute
     };
+    if (typeof o.focusYear === "number" && Number.isFinite(o.focusYear)) {
+      req.focusYear = o.focusYear;
+    }
     return {
-      ...(calcBazi(req) as Record<string, unknown>),
+      ...calcBazi(req),
       meta: { birth: birthMeta(birth) }
     };
   });
