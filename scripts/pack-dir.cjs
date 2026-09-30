@@ -117,8 +117,28 @@ const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 // 沙箱会往 NODE_OPTIONS 里塞 --require 垫片，打包后的应用不认这个变量并会打一行 ERROR
 delete env.NODE_OPTIONS;
-const st = spawnSync(exe, ["--self-test"], { cwd: unpacked, env, encoding: "utf-8", timeout: 120000 });
-const out = `${st.stdout ?? ""}${st.stderr ?? ""}`;
+// Windows 的 GUI 程序 stdout 无法被 spawnSync 捕获，让自检把 JSON 落到文件再读回
+const outFile = path.join(unpacked, "selftest.json");
+env.XUANSHU_SELF_TEST_OUT = outFile;
+// 刚打完包的 exe 可能被 Windows Defender / 索引服务短暂锁定（spawnSync 报 EBUSY），加重试。
+let st = { error: null, stdout: "", stderr: "" };
+for (let attempt = 1; attempt <= 5; attempt += 1) {
+  st = spawnSync(exe, ["--self-test"], { cwd: unpacked, env, encoding: "utf-8", timeout: 120000 });
+  if (!st.error) break;
+  if (attempt === 5) break;
+  console.log(`[pack] 自检进程启动失败（${st.error.code}），3 秒后重试（${attempt + 1}/5）...`);
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 3000);
+}
+if (st.error) {
+  console.error(`[pack] 自检进程启动失败（${st.error.code}，已重试 5 次）：${st.error.message}`);
+  process.exit(1);
+}
+let out = `${st.stdout ?? ""}${st.stderr ?? ""}`;
+try {
+  out = `${fs.readFileSync(outFile, "utf-8")}\n${out}`;
+} catch {
+  /* 文件没生成就退回 stdout/stderr */
+}
 
 /** 从混合输出里抠出第一个完整的 JSON 对象（产物尾部常有 Chromium 日志行） */
 function extractJson(text) {

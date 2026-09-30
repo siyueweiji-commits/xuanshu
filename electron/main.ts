@@ -106,6 +106,10 @@ async function runSelfTest(): Promise<void> {
     return `本地版本 ${ov.version}，四类资源 ${ov.kinds.map((k) => k.kind + "=" + k.builtin).join(" ")}`;
   });
 
+  // 自检也会开一个隐藏窗口加载界面，渲染层（initTheme / 免责声明 / 首页档案列表）
+  // 会走 IPC，不注册就会在主进程打一堆 "No handler registered" 报错，污染自检输出。
+  registerIpcHandlers();
+
   // 6) 界面真的能渲染（这一步只有真开窗口才能验：dist 产物 + preload + React 挂载）
   await (async () => {
     const errors: string[] = [];
@@ -177,6 +181,17 @@ async function runSelfTest(): Promise<void> {
     checks
   };
   console.log("XUANSHU_SELF_TEST " + JSON.stringify(out, null, 2));
+
+  // Windows 下 GUI 子系统的程序，其 stdout/stderr 无法被 spawnSync 捕获，
+  // 所以额外把结果落到文件，供 pack-dir.cjs 读取（手动跑仍可看控制台输出）。
+  const outFile = process.env.XUANSHU_SELF_TEST_OUT;
+  if (outFile) {
+    try {
+      fs.writeFileSync(outFile, "XUANSHU_SELF_TEST " + JSON.stringify(out, null, 2), "utf-8");
+    } catch {
+      /* 写不进就忽略，不影响退出码 */
+    }
+  }
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
