@@ -174,6 +174,16 @@ export default function BaZi() {
       .catch(() => setCities([]));
   }, []);
 
+  // 起局默认（M10）：读取设置页保存的真太阳时 / 默认城市作为初始值
+  useEffect(() => {
+    void ipc<{ useTrueSolar?: boolean; defaultCity?: string }>("app:prefs")
+      .then((p) => {
+        if (p?.useTrueSolar) setUseTrueSolar(true);
+        if (p?.defaultCity) setCity(p.defaultCity);
+      })
+      .catch(() => {});
+  }, []);
+
   async function paiPan(year = focusYear) {
     setError("");
     setLoading(true);
@@ -351,7 +361,7 @@ export default function BaZi() {
               <div
                 key={p.key}
                 className={`rounded-xl border p-4 ${
-                  p.key === "day" ? "border-accent/35 bg-accent/[0.03]" : "border-hair bg-white shadow-card"
+                  p.key === "day" ? "border-accent/35 bg-accent/[0.03]" : "border-hair bg-surface shadow-card"
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -716,7 +726,7 @@ function Tone({ on, label, hint }: { on: boolean; label: string; hint: string })
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
-        on ? "bg-success/15 text-[#1f8039]" : "bg-gray3 text-ink-3"
+        on ? "bg-success/15 text-mark-success" : "bg-gray3 text-ink-3"
       }`}
     >
       {label}

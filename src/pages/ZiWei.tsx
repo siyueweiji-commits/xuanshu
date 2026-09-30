@@ -110,11 +110,11 @@ interface CityInfo {
 }
 
 const SCOPES = [
-  { key: "decadal", label: "大限", tint: "border-[#ff9500]/30 bg-[#ff9500]/[0.05]", ink: "text-[#a35b00]" },
-  { key: "yearly", label: "流年", tint: "border-[#007aff]/30 bg-[#007aff]/[0.05]", ink: "text-[#0a5aa8]" },
-  { key: "monthly", label: "流月", tint: "border-[#34c759]/30 bg-[#34c759]/[0.05]", ink: "text-[#1f8039]" },
-  { key: "daily", label: "流日", tint: "border-[#af52de]/30 bg-[#af52de]/[0.05]", ink: "text-[#7a34a3]" },
-  { key: "hourly", label: "流时", tint: "border-[#ff2d55]/30 bg-[#ff2d55]/[0.05]", ink: "text-[#c01f42]" }
+  { key: "decadal", label: "大限", tint: "border-warning/30 bg-warning/[0.06]", ink: "text-mark-warn" },
+  { key: "yearly", label: "流年", tint: "border-accent/30 bg-accent/[0.06]", ink: "text-mark-info" },
+  { key: "monthly", label: "流月", tint: "border-success/30 bg-success/[0.06]", ink: "text-mark-success" },
+  { key: "daily", label: "流日", tint: "border-purple/30 bg-purple/[0.06]", ink: "text-mark-purple" },
+  { key: "hourly", label: "流时", tint: "border-danger/30 bg-danger/[0.06]", ink: "text-mark-danger" }
 ] as const;
 
 const today = new Date();
@@ -149,6 +149,16 @@ export default function ZiWei() {
     void ipc<CityInfo[]>("calendar:cities")
       .then(setCities)
       .catch(() => setCities([]));
+  }, []);
+
+  // 起局默认（M10）：读取设置页保存的真太阳时 / 默认城市作为初始值
+  useEffect(() => {
+    void ipc<{ useTrueSolar?: boolean; defaultCity?: string }>("app:prefs")
+      .then((p) => {
+        if (p?.useTrueSolar) setUseTrueSolar(true);
+        if (p?.defaultCity) setCity(p.defaultCity);
+      })
+      .catch(() => {});
   }, []);
 
   /** 统一的排盘入参（含真太阳时设置） */
@@ -564,7 +574,7 @@ function PalaceCard({ p, compact }: { p: Palace; compact?: boolean }) {
           ? "border-accent/40 bg-accent/[0.055]"
           : isMing
             ? "border-accent/25 bg-accent/[0.025]"
-            : "border-hair bg-white shadow-card"
+            : "border-hair bg-surface shadow-card"
       }`}
     >
       <div className="flex items-center justify-between gap-2">

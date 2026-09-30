@@ -74,8 +74,8 @@ function Shell() {
       </aside>
 
       {/* 主区：顶部标题条为拖拽区，右侧预留系统窗口控件 */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white">
-        <header className="titlebar-drag flex h-[38px] shrink-0 items-center border-b border-hair bg-white pl-5 pr-[148px]">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-surface">
+        <header className="titlebar-drag flex h-[38px] shrink-0 items-center border-b border-hair bg-surface pl-5 pr-[148px]">
           <span className="text-[13px] font-medium text-ink-2">{current?.label ?? "玄枢"}</span>
         </header>
 

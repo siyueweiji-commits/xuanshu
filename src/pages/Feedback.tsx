@@ -526,7 +526,7 @@ export default function Feedback() {
                               {e.matched.map((m) => (
                                 <span
                                   key={m.id}
-                                  className="flex w-full items-baseline gap-2 rounded bg-white px-2.5 py-1.5 text-[12px] text-ink-2"
+                                  className="flex w-full items-baseline gap-2 rounded bg-surface px-2.5 py-1.5 text-[12px] text-ink-2"
                                 >
                                   <span
                                     className={`mt-[5px] h-3 w-[3px] shrink-0 rounded-full ${

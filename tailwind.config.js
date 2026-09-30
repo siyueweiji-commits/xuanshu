@@ -22,42 +22,65 @@ module.exports = {
       fontSize: {
         micro: ["11px", { lineHeight: "16px" }]
       },
+      /**
+       * 颜色令牌全部走 CSS 变量（定义见 src/index.css 的 :root 与 .dark），
+       * 于是深色模式只需切换 <html class="dark">，组件代码里不用写任何 dark: 变体。
+       *
+       * 约定：
+       *   - 需要 `bg-x/10` 这类透明度修饰的令牌，用 `rgb(var(--x) / <alpha-value>)`，
+       *     变量值必须是「R G B」三元组；
+       *   - 不需要修饰的令牌（含自带透明度的 hair）直接用 `var(--x)`。
+       */
       colors: {
-        /** 窗口底色（Apple 浅色系统背景） */
-        canvas: "#f5f5f7",
+        /** 窗口底色 */
+        canvas: "var(--c-canvas)",
+        /** 卡片 / 面板底色（原 bg-white） */
+        surface: "var(--c-surface)",
         /** 侧边栏底色 */
-        sidebar: "#ececef",
-        /** 中性灰阶 */
-        gray1: "#fafafc",
-        gray2: "#f5f5f7",
-        gray3: "#efeff2",
-        gray4: "#e3e3e8",
-        gray5: "#d8d8dd",
-        gray6: "#f0f0f3",
-        /** 分割线 / 描边：极轻，Apple 风格 */
-        line: "#d9d9de",
-        hair: "rgba(0, 0, 0, 0.07)",
+        sidebar: "var(--c-sidebar)",
+        gray1: "var(--c-gray1)",
+        gray2: "var(--c-gray2)",
+        gray3: "var(--c-gray3)",
+        gray4: "var(--c-gray4)",
+        gray5: "var(--c-gray5)",
+        gray6: "var(--c-gray6)",
+        /** 分割线 / 描边 */
+        line: "var(--c-line)",
+        hair: "var(--c-hair)",
+        /** 中性叠加层（hover / chip 底），替代原来的 black/5 */
+        hover: "rgb(var(--c-hover) / <alpha-value>)",
+        /** 遮罩层（弹窗背景） */
+        scrim: "rgb(var(--c-scrim) / <alpha-value>)",
         /** 文字层级 */
-        ink: "rgba(0, 0, 0, 0.86)",
-        "ink-2": "rgba(60, 60, 67, 0.62)",
-        "ink-3": "rgba(60, 60, 67, 0.42)",
-        "ink-4": "rgba(60, 60, 67, 0.26)",
-        /** 强调色：Apple 系统蓝 */
+        ink: "var(--c-ink)",
+        "ink-2": "var(--c-ink-2)",
+        "ink-3": "var(--c-ink-3)",
+        "ink-4": "var(--c-ink-4)",
+        /** 强调色 */
         accent: {
-          DEFAULT: "#007aff",
-          dark: "#0069dc",
-          light: "#4aa3ff"
+          DEFAULT: "rgb(var(--c-accent) / <alpha-value>)",
+          dark: "rgb(var(--c-accent-dark) / <alpha-value>)",
+          light: "rgb(var(--c-accent-light) / <alpha-value>)"
         },
-        danger: "#ff3b30",
-        warning: "#ff9500",
-        success: "#34c759",
+        purple: "rgb(var(--c-purple) / <alpha-value>)",
+        danger: "rgb(var(--c-danger) / <alpha-value>)",
+        warning: "rgb(var(--c-warning) / <alpha-value>)",
+        success: "rgb(var(--c-success) / <alpha-value>)",
         /** 五行取色 */
         elm: {
-          mu: "#2fae52",
-          huo: "#ff453a",
-          tu: "#c79a2e",
-          jin: "#8e8e93",
-          shui: "#0a84ff"
+          mu: "rgb(var(--c-elm-mu) / <alpha-value>)",
+          huo: "rgb(var(--c-elm-huo) / <alpha-value>)",
+          tu: "rgb(var(--c-elm-tu) / <alpha-value>)",
+          jin: "rgb(var(--c-elm-jin) / <alpha-value>)",
+          shui: "rgb(var(--c-elm-shui) / <alpha-value>)"
+        },
+        /** 五行之外，卦象 / 分类用的少量固定色 */
+        mark: {
+          warn: "rgb(var(--c-mark-warn) / <alpha-value>)",
+          danger: "rgb(var(--c-mark-danger) / <alpha-value>)",
+          success: "rgb(var(--c-mark-success) / <alpha-value>)",
+          info: "rgb(var(--c-mark-info) / <alpha-value>)",
+          purple: "rgb(var(--c-mark-purple) / <alpha-value>)"
         }
       },
       borderRadius: {
@@ -70,10 +93,10 @@ module.exports = {
         "3xl": "26px"
       },
       boxShadow: {
-        card: "0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 6px rgba(0, 0, 0, 0.025)",
-        pop: "0 10px 32px rgba(0, 0, 0, 0.10), 0 2px 6px rgba(0, 0, 0, 0.05)",
-        seg: "0 1px 2px rgba(0, 0, 0, 0.10), 0 0 0 0.5px rgba(0, 0, 0, 0.04)",
-        btn: "0 1px 2px rgba(0, 122, 255, 0.26)"
+        card: "var(--sh-card)",
+        pop: "var(--sh-pop)",
+        seg: "var(--sh-seg)",
+        btn: "var(--sh-btn)"
       },
       letterSpacing: {
         tightest: "-0.022em"

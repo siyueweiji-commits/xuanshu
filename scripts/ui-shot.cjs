@@ -103,6 +103,18 @@ const PAGES = [
     click: null
   },
   {
+    key: "settings-prefs",
+    hash: "#/settings",
+    title: "设置·外观与起局默认",
+    focus: "#prefs-panel"
+  },
+  {
+    key: "settings-data",
+    hash: "#/settings",
+    title: "设置·数据管理",
+    focus: "#data-panel"
+  },
+  {
     // 首次启动免责声明弹窗：需要 XUANSHU_SHOT_DISCLAIMER=1 才显示
     //   XUANSHU_SHOT_DISCLAIMER=1 npm run shot -- disclaimer
     key: "disclaimer",

@@ -229,6 +229,42 @@ const HANDLERS = {
     text: ""
   }),
 
+  /* ---------- M10：偏好 / 数据管理（截图用静态数据） ---------- */
+
+  "app:prefs": () => ({ theme: process.env.XUANSHU_SHOT_THEME || "system", useTrueSolar: false, defaultCity: "孝感" }),
+  "app:set-prefs": (o) => ({ theme: str(o, "theme", "system"), useTrueSolar: o.useTrueSolar === true, defaultCity: str(o, "defaultCity") }),
+  "app:theme-resolved": (o) => ({ applied: str(o, "theme", "light") }),
+
+  "app:data-stats": () => ({
+    appName: "玄枢 XuanShu",
+    appVersion: "0.1.0",
+    dataDir: path.join(process.env.APPDATA || "C:\\Users", "XuanShu"),
+    tables: [
+      { name: "profiles", rows: 2 },
+      { name: "charts", rows: 6 },
+      { name: "daily_fortunes", rows: 12 },
+      { name: "divinations", rows: 9 },
+      { name: "feedbacks", rows: 4 },
+      { name: "reports", rows: 2 }
+    ],
+    settingsCount: 8,
+    totalRows: 35
+  }),
+  "app:export-data": () => ({
+    path: path.join(process.env.USERPROFILE || "C:\\Users", "Documents", "XuanShu", "玄枢备份-20260930141200.json"),
+    rows: 35,
+    settings: 8
+  }),
+  "app:import-data": () => ({
+    mode: "replace",
+    tables: [{ name: "profiles", inserted: 2, skipped: 0 }],
+    settingsApplied: 8,
+    totalInserted: 35,
+    skippedSettings: []
+  }),
+  "app:clear-data": () => ({ removed: { profiles: 2, charts: 6 }, total: 35, keptSettings: true }),
+  "app:clear-resource-overrides": () => ({ removed: 0 }),
+
   "profile:list": () => MOCK_PROFILES,
   "profile:create": () => ({ id: 3 }),
   "profile:delete": (o) => ({ deleted: num(o, "id") }),

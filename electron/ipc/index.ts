@@ -1,4 +1,4 @@
-import { app, ipcMain } from "electron";
+import { app, ipcMain, BrowserWindow } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { getDb } from "../db/database";
@@ -68,6 +68,15 @@ import {
   setUpdateSettings
 } from "../services/updater";
 import { RESOURCE_KINDS, ResourceKind } from "../services/dataPaths";
+import {
+  getPrefs,
+  setPrefs,
+  dataStats,
+  exportAllData,
+  importAllData,
+  clearAllData,
+  clearResourceOverrides
+} from "../services/prefs";
 
 type Handler = (payload: unknown) => unknown;
 type AsyncHandler = (payload: unknown) => Promise<unknown>;
@@ -212,6 +221,53 @@ export function registerIpcHandlers(): void {
     acceptDisclaimer();
     return disclaimerState();
   });
+
+  // 主题已解析后同步无边框窗口标题条配色（浅色白 / 深色近黑）
+  handle("app:theme-resolved", (payload) => {
+    const theme = str(asObject(payload), "theme");
+    const overlay =
+      theme === "dark"
+        ? { color: "#232325", symbolColor: "#d0d0d0", height: 38 }
+        : { color: "#ffffff", symbolColor: "#3c3c43", height: 38 };
+    for (const win of BrowserWindow.getAllWindows()) {
+      try {
+        win.setTitleBarOverlay(overlay);
+      } catch {
+        /* 某些平台/窗口可能不支持，忽略 */
+      }
+    }
+    return { applied: theme };
+  });
+
+  /* ---------------- 偏好与数据管理（M10） ---------------- */
+
+  handle("app:prefs", () => getPrefs());
+
+  handle("app:set-prefs", (payload) => {
+    const o = asObject(payload);
+    const patch: Record<string, unknown> = {};
+    if (typeof o.theme === "string") patch.theme = o.theme;
+    if (typeof o.useTrueSolar === "boolean") patch.useTrueSolar = o.useTrueSolar;
+    if (typeof o.defaultCity === "string") patch.defaultCity = o.defaultCity;
+    return setPrefs(patch);
+  });
+
+  handle("app:data-stats", () => dataStats());
+
+  handle("app:export-data", () => exportAllData());
+
+  handle("app:import-data", (payload) => {
+    const o = asObject(payload);
+    const mode = str(o, "mode") === "merge" ? "merge" : "replace";
+    return importAllData(str(o, "json"), { mode });
+  });
+
+  handle("app:clear-data", (payload) => {
+    const o = asObject(payload);
+    return clearAllData({ keepSettings: o.keepSettings !== false });
+  });
+
+  handle("app:clear-resource-overrides", () => ({ removed: clearResourceOverrides() }));
 
   // 档案管理
   handle("profile:create", (payload) => {

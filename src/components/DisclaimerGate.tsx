@@ -45,8 +45,8 @@ export default function DisclaimerGate({ children }: { children: ReactNode }) {
     <>
       {children}
       {show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-6">
-          <div className="w-full max-w-[540px] rounded-2xl bg-white p-6 shadow-pop">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/40 px-6">
+          <div className="w-full max-w-[540px] rounded-2xl bg-surface p-6 shadow-pop">
             <div className="flex items-center gap-2.5">
               <span className="grid h-[22px] w-[22px] place-items-center rounded-[6px] bg-accent text-[12px] font-bold leading-none text-white">
                 玄

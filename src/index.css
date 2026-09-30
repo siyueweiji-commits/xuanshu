@@ -6,7 +6,135 @@
    玄枢 · Apple 简约风设计基线
    令牌定义见 tailwind.config.js，组件类统一在下方沉淀，
    页面不再各自拼写样式字符串。
+
+   主题：所有颜色令牌落地为 CSS 变量，深色模式只需给 <html> 加 .dark，
+   组件里**不需要写任何 dark: 变体**。
    ============================================================ */
+
+:root {
+  /* 底色与层级 */
+  --c-canvas: #f5f5f7;
+  --c-surface: #ffffff;
+  --c-sidebar: #ececef;
+  --c-gray1: #fafafc;
+  --c-gray2: #f5f5f7;
+  --c-gray3: #efeff2;
+  --c-gray4: #e3e3e8;
+  --c-gray5: #d8d8dd;
+  --c-gray6: #f0f0f3;
+
+  /* 描边 */
+  --c-line: #d9d9de;
+  --c-hair: rgba(0, 0, 0, 0.07);
+
+  /* 中性叠加与遮罩 */
+  --c-hover: 0 0 0;
+  --c-scrim: 0 0 0;
+
+  /* 文字层级 */
+  --c-ink: rgba(0, 0, 0, 0.86);
+  --c-ink-2: rgba(60, 60, 67, 0.62);
+  --c-ink-3: rgba(60, 60, 67, 0.42);
+  --c-ink-4: rgba(60, 60, 67, 0.26);
+
+  /* 强调色 */
+  --c-accent: 0 122 255;
+  --c-accent-dark: 0 105 220;
+  --c-accent-light: 74 163 255;
+  --c-purple: 175 82 222;
+  --c-danger: 255 59 48;
+  --c-warning: 255 149 0;
+  --c-success: 52 199 89;
+
+  /* 五行取色 */
+  --c-elm-mu: 47 174 82;
+  --c-elm-huo: 255 69 58;
+  --c-elm-tu: 199 154 46;
+  --c-elm-jin: 142 142 147;
+  --c-elm-shui: 10 132 255;
+
+  /* 徽标 / 提示条文字色（浅底深字） */
+  --c-mark-warn: 163 91 0;
+  --c-mark-danger: 201 43 34;
+  --c-mark-success: 31 128 57;
+  --c-mark-info: 10 90 168;
+  --c-mark-purple: 122 52 163;
+
+  /* 阴影 */
+  --sh-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 6px rgba(0, 0, 0, 0.025);
+  --sh-pop: 0 10px 32px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.05);
+  --sh-seg: 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  --sh-btn: 0 1px 2px rgba(0, 122, 255, 0.26);
+
+  /* 滚动条 */
+  --c-scrollbar: rgba(0, 0, 0, 0.16);
+  --c-scrollbar-hover: rgba(0, 0, 0, 0.3);
+
+  /* 原生控件的内嵌图标（select 箭头 / 勾选框对勾），随主题换描边色 */
+  --icon-chevron: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.75 4.5 6 7.75 9.25 4.5' fill='none' stroke='%238e8e93' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --icon-check: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.6 6.3 4.9 8.6 9.4 3.9' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  color-scheme: light;
+}
+
+.dark {
+  --c-canvas: #1c1c1e;
+  --c-surface: #2c2c2e;
+  --c-sidebar: #232325;
+  --c-gray1: #2f2f31;
+  --c-gray2: #333335;
+  --c-gray3: #3a3a3c;
+  --c-gray4: #48484a;
+  --c-gray5: #545456;
+  --c-gray6: #39393b;
+
+  --c-line: #48484a;
+  --c-hair: rgba(255, 255, 255, 0.09);
+
+  /* 深色下 hover 用加亮而不是加暗 */
+  --c-hover: 255 255 255;
+  --c-scrim: 0 0 0;
+
+  --c-ink: rgba(255, 255, 255, 0.92);
+  --c-ink-2: rgba(235, 235, 245, 0.66);
+  --c-ink-3: rgba(235, 235, 245, 0.46);
+  --c-ink-4: rgba(235, 235, 245, 0.3);
+
+  /* 深色底上把强调色提亮一档，保证对比度 */
+  --c-accent: 58 150 255;
+  --c-accent-dark: 40 130 235;
+  --c-accent-light: 120 185 255;
+  --c-purple: 205 140 245;
+  --c-danger: 255 88 78;
+  --c-warning: 255 168 51;
+  --c-success: 66 208 105;
+
+  --c-elm-mu: 74 200 110;
+  --c-elm-huo: 255 105 95;
+  --c-elm-tu: 220 178 76;
+  --c-elm-jin: 170 170 176;
+  --c-elm-shui: 90 175 255;
+
+  /* 深底上提示文字改用浅色 */
+  --c-mark-warn: 255 196 120;
+  --c-mark-danger: 255 140 130;
+  --c-mark-success: 130 225 155;
+  --c-mark-info: 140 190 255;
+  --c-mark-purple: 215 165 250;
+
+  --sh-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 6px rgba(0, 0, 0, 0.2);
+  --sh-pop: 0 10px 32px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --sh-seg: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+  --sh-btn: 0 1px 2px rgba(0, 0, 0, 0.35);
+
+  --c-scrollbar: rgba(255, 255, 255, 0.2);
+  --c-scrollbar-hover: rgba(255, 255, 255, 0.34);
+
+  /* 深色下 select 箭头要提亮，否则在深底上看不见 */
+  --icon-chevron: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.75 4.5 6 7.75 9.25 4.5' fill='none' stroke='%23a1a1a6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  color-scheme: dark;
+}
 
 @layer base {
   html,
@@ -24,7 +152,7 @@
   }
 
   ::selection {
-    background: rgba(0, 122, 255, 0.16);
+    background: rgb(var(--c-accent) / 0.2);
   }
 
   /* 细窄、低调的滚动条 */
@@ -36,13 +164,13 @@
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background-color: rgba(0, 0, 0, 0.16);
+    background-color: var(--c-scrollbar);
     border: 3px solid transparent;
     border-radius: 999px;
     background-clip: content-box;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(0, 0, 0, 0.3);
+    background-color: var(--c-scrollbar-hover);
   }
   *::-webkit-scrollbar-corner {
     background: transparent;
@@ -53,6 +181,18 @@
   input[type="number"]::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
+  }
+
+  /* 原生日期/时间控件的日历图标跟随主题 */
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: var(--c-picker-filter, none);
+    opacity: 0.55;
+    cursor: pointer;
+  }
+  .dark input[type="date"]::-webkit-calendar-picker-indicator,
+  .dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
   }
 
   details > summary {
@@ -78,7 +218,7 @@
 @layer components {
   /* ---------- 容器 ---------- */
   .card {
-    @apply rounded-2xl border border-hair bg-white shadow-card;
+    @apply rounded-2xl border border-hair bg-surface shadow-card;
   }
   .card-p {
     @apply p-5 sm:p-6;
@@ -113,7 +253,7 @@
   /* ---------- 表单控件 ---------- */
   .input,
   .select {
-    @apply h-9 w-full rounded border border-line bg-white px-3 text-sm text-ink
+    @apply h-9 w-full rounded border border-line bg-surface px-3 text-sm text-ink
       outline-none transition duration-150
       placeholder:text-ink-4
       focus:border-accent focus:ring-4 focus:ring-accent/15
@@ -122,14 +262,14 @@
 
   .select {
     @apply cursor-pointer appearance-none pr-8;
-    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.75 4.5 6 7.75 9.25 4.5' fill='none' stroke='%238e8e93' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-image: var(--icon-chevron);
     background-repeat: no-repeat;
     background-position: right 10px center;
   }
 
   /* 复选框：iOS 式方角圆点 */
   .check {
-    @apply h-4 w-4 shrink-0 cursor-pointer appearance-none rounded-[5px] border border-line bg-white
+    @apply h-4 w-4 shrink-0 cursor-pointer appearance-none rounded-[5px] border border-line bg-surface
       transition duration-150
       checked:border-accent checked:bg-accent
       focus-visible:ring-4 focus-visible:ring-accent/15;
@@ -137,7 +277,7 @@
     background-position: center;
   }
   .check:checked {
-    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.6 6.3 4.9 8.6 9.4 3.9' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-image: var(--icon-check);
   }
 
   /* ---------- 按钮 ---------- */
@@ -151,13 +291,13 @@
     @apply bg-accent text-white shadow-btn hover:bg-accent-dark;
   }
   .btn-secondary {
-    @apply border border-line bg-white text-ink hover:bg-gray1 active:bg-gray3;
+    @apply border border-line bg-surface text-ink hover:bg-gray1 active:bg-gray3;
   }
   .btn-plain {
     @apply px-2 text-accent hover:bg-accent/10;
   }
   .btn-quiet {
-    @apply px-2 text-ink-3 hover:bg-black/5 hover:text-ink;
+    @apply px-2 text-ink-3 hover:bg-hover/5 hover:text-ink;
   }
   .btn-danger {
     @apply px-2 text-danger hover:bg-danger/10;
@@ -178,7 +318,7 @@
   }
   .seg-item-active,
   .seg-item-active:hover {
-    @apply bg-white text-ink shadow-seg;
+    @apply bg-surface text-ink shadow-seg;
   }
 
   /* ---------- 侧边导航 ---------- */
@@ -187,7 +327,7 @@
       text-[13px] font-medium text-ink-2 transition-colors duration-100;
   }
   .nav-item:hover {
-    @apply bg-black/[0.045] text-ink;
+    @apply bg-hover/[0.055] text-ink;
   }
   .nav-item-active,
   .nav-item-active:hover {
@@ -199,19 +339,19 @@
     @apply inline-flex items-center gap-1 rounded-full px-2 py-px text-micro font-medium;
   }
   .chip-neutral {
-    @apply bg-black/[0.055] text-ink-2;
+    @apply bg-hover/[0.06] text-ink-2;
   }
   .chip-accent {
-    @apply bg-accent/10 text-accent;
+    @apply bg-accent/[0.12] text-accent;
   }
   .chip-warn {
-    @apply bg-warning/15 text-[#a35b00];
+    @apply bg-warning/15 text-mark-warn;
   }
   .chip-danger {
-    @apply bg-danger/10 text-[#c92b22];
+    @apply bg-danger/[0.12] text-mark-danger;
   }
   .chip-success {
-    @apply bg-success/15 text-[#1f8039];
+    @apply bg-success/15 text-mark-success;
   }
 
   /* ---------- 键值行 ---------- */
@@ -230,13 +370,13 @@
     @apply rounded-lg px-3 py-2.5 text-xs leading-relaxed;
   }
   .notice-info {
-    @apply bg-accent/[0.07] text-[#0a5aa8];
+    @apply bg-accent/[0.08] text-mark-info;
   }
   .notice-warn {
-    @apply bg-warning/[0.09] text-[#8a5300];
+    @apply bg-warning/[0.1] text-mark-warn;
   }
   .notice-danger {
-    @apply bg-danger/[0.07] text-[#b3281f];
+    @apply bg-danger/[0.08] text-mark-danger;
   }
   .notice-quiet {
     @apply bg-gray2 text-ink-2;
