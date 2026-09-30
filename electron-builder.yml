@@ -1,0 +1,29 @@
+appId: com.xuanshu.app
+productName: XuanShu
+directories:
+  output: release
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - resources/**/*
+  - package.json
+  - "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}"
+  - "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}"
+asar: true
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: 玄枢
+mac:
+  target:
+    - dmg
+  category: public.app-category.reference
+linux:
+  target:
+    - AppImage
+  category: Utility
