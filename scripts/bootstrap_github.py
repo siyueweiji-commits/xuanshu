@@ -43,6 +43,8 @@ import json
 import os
 import shutil
 import subprocess
+import time
+from concurrent.futures import ThreadPoolExecutor
 import sys
 import urllib.error
 import urllib.request
@@ -429,10 +431,12 @@ def api(token: str, method: str, path: str, payload: dict | None = None,
 # 推送时需要排除的构建产物/依赖（等价于 .gitignore 的核心规则）
 EXCLUDE_DIRS = {
     ".git", "node_modules", "dist", "dist-electron", "release",
-    "__pycache__", ".idea", ".vscode", ".pytest_cache",
+    "__pycache__", ".idea", ".vscode", ".pytest_cache", ".uishot",
 }
+EXCLUDE_DIR_PREFIXES = (".tmp", ".verify-userdata")
 EXCLUDE_SUFFIXES = (".log", ".pyc", ".pyo")
 EXCLUDE_NAMES = {".env", ".env.local", ".DS_Store", "Thumbs.db"}
+EXCLUDE_PREFIXES = (".tmp-",)
 
 
 def collect_files(root: Path) -> list[Path]:
@@ -442,9 +446,11 @@ def collect_files(root: Path) -> list[Path]:
         if not p.is_file():
             continue
         parts = p.relative_to(root).parts
-        if any(seg in EXCLUDE_DIRS for seg in parts[:-1]):
+        if any(seg in EXCLUDE_DIRS or seg.startswith(EXCLUDE_DIR_PREFIXES) for seg in parts[:-1]):
             continue
-        if p.name in EXCLUDE_NAMES or p.suffix.lower() in EXCLUDE_SUFFIXES:
+        if p.name in EXCLUDE_NAMES or p.name.startswith(EXCLUDE_PREFIXES):
+            continue
+        if p.suffix.lower() in EXCLUDE_SUFFIXES:
             continue
         picked.append(p)
     return picked
@@ -550,26 +556,37 @@ def push_via_api(name: str, root: Path, token: str) -> bool:
         msg = ref.get("message") if isinstance(ref, dict) else ref
         print(f"[!] {name}: 读取分支失败（HTTP {code}）：{msg}（按空仓库继续）")
 
-    # 1) 逐个上传文件 blob（大文件耗时较长，失败自动重试 3 次）
-    tree_items: list[dict[str, str]] = []
-    for idx, f in enumerate(files, 1):
+    # 1) 逐个上传文件 blob（8 路并发；大文件耗时较长，失败自动重试 3 次）
+    def upload_blob(f: Path) -> tuple[str, str | None, str]:
         rel = f.relative_to(root).as_posix()
         b64 = base64.b64encode(f.read_bytes()).decode("ascii")
-        blob: dict | None = None
+        last = ""
         for attempt in range(1, 4):
             code, resp = api(token, "POST", f"/repos/{OWNER}/{name}/git/blobs",
                              {"content": b64, "encoding": "base64"}, timeout=180)
             if code == 201 and isinstance(resp, dict) and "sha" in resp:
-                blob = resp
-                break
+                return rel, str(resp["sha"]), ""
             msg = resp.get("message") if isinstance(resp, dict) else resp
-            print(f"    [!] {rel} 第 {attempt}/3 次失败（HTTP {code}）：{msg}")
-        if blob is None:
-            print(f"[×] {name}: 上传 {rel} 失败（已重试 3 次）")
-            return False
-        tree_items.append({"path": rel, "mode": "100644", "type": "blob", "sha": str(blob["sha"])})
-        if idx % 10 == 0 or idx == len(files):
-            print(f"    已上传 {idx}/{len(files)}")
+            last = f"{rel} 第 {attempt}/3 次失败（HTTP {code}）：{msg}"
+            time.sleep(1.0)
+        return rel, None, last
+
+    tree_items: list[dict[str, str]] = []
+    done = 0
+    failed = ""
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for rel, sha, err in pool.map(upload_blob, files):
+            done += 1
+            if sha is None:
+                failed = err
+                break
+            tree_items.append({"path": rel, "mode": "100644", "type": "blob", "sha": sha})
+            if done % 20 == 0 or done == len(files):
+                print(f"    已上传 {done}/{len(files)}")
+    if failed:
+        print(f"[×] {name}: 上传 {failed}")
+        pool.shutdown(wait=False, cancel_futures=True)
+        return False
 
     # 2) 组装 tree（带 base_tree 时，未列出的已有文件会被保留）
     tree_payload: dict[str, object] = {"tree": tree_items}
