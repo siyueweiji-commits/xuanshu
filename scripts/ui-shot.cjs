@@ -92,6 +92,7 @@ const PAGES = [
       return 'ok'; })()`,
     click: "生成报告"
   },
+  { key: "feedback", hash: "#/feedback", title: "反馈与回测", click: "开始回测" },
   { key: "settings", hash: "#/settings", title: "设置" }
 ];
 

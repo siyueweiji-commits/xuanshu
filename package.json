@@ -24,7 +24,8 @@
     "dist:linux": "npm run build && electron-builder --linux",
     "verify:m4": "node scripts/verify-m4.cjs",
     "verify:m5": "node scripts/verify-m5.cjs",
-    "verify:m6": "node scripts/verify-m6.cjs"
+    "verify:m6": "node scripts/verify-m6.cjs",
+    "verify:m7": "node scripts/verify-m7.cjs"
   },
   "dependencies": {
     "better-sqlite3": "^11.3.0",

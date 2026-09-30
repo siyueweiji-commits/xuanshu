@@ -37,9 +37,21 @@ import {
   deleteReport,
   clearReports,
   exportReportFile,
+  exportDataFile,
   saveDailyFortune,
   getDailyFortune
 } from "../services/reportStore";
+import {
+  eventTypes,
+  createFeedback,
+  listFeedbacks,
+  updateFeedback,
+  deleteFeedback,
+  clearFeedbacks,
+  backtest,
+  backtestCsv,
+  BacktestRequest
+} from "../services/feedback";
 
 type Handler = (payload: unknown) => unknown;
 
@@ -406,6 +418,74 @@ export function registerIpcHandlers(): void {
     return importRules(str(o, "json"), mode);
   });
 
+  /* ---------------- 反馈与回测（M7） ---------------- */
+
+  handle("feedback:types", () => eventTypes());
+
+  handle("feedback:create", (payload) => {
+    const o = asObject(payload);
+    return createFeedback({
+      profileId: maybeNum(o, "profileId"),
+      date: str(o, "date"),
+      eventType: str(o, "eventType"),
+      description: str(o, "description")
+    });
+  });
+
+  handle("feedback:list", (payload) => {
+    const o = asObject(payload);
+    return listFeedbacks(maybeNum(o, "profileId"), maybeNum(o, "limit") ?? 200);
+  });
+
+  handle("feedback:update", (payload) => {
+    const o = asObject(payload);
+    const id = maybeNum(o, "id");
+    if (id === null) throw new Error("缺少记录 id");
+    const patch: Record<string, unknown> = {};
+    if (typeof o.date === "string") patch.date = o.date;
+    if (typeof o.eventType === "string") patch.eventType = o.eventType;
+    if (typeof o.description === "string") patch.description = o.description;
+    if (typeof o.profileId === "number" || o.profileId === null) patch.profileId = o.profileId;
+    const row = updateFeedback(id, patch);
+    if (!row) throw new Error(`记录不存在：${id}`);
+    return row;
+  });
+
+  handle("feedback:delete", (payload) => {
+    const id = maybeNum(asObject(payload), "id");
+    if (id === null) throw new Error("缺少记录 id");
+    return { deleted: deleteFeedback(id) };
+  });
+
+  handle("feedback:clear", (payload) => ({
+    removed: clearFeedbacks(maybeNum(asObject(payload), "profileId"))
+  }));
+
+  handle("feedback:backtest", (payload) => {
+    const o = asObject(payload);
+    const req: BacktestRequest = {
+      dateFrom: str(o, "dateFrom"),
+      dateTo: str(o, "dateTo"),
+      profileId: maybeNum(o, "profileId")
+    };
+    const birth = reportBirth(o.birth);
+    if (birth) req.birth = birth;
+    return backtest(req);
+  });
+
+  handle("feedback:export", (payload) => {
+    const o = asObject(payload);
+    const req: BacktestRequest = {
+      dateFrom: str(o, "dateFrom"),
+      dateTo: str(o, "dateTo"),
+      profileId: maybeNum(o, "profileId")
+    };
+    const birth = reportBirth(o.birth);
+    if (birth) req.birth = birth;
+    const result = backtest(req);
+    return exportDataFile(backtestCsv(result), ".csv", `回测记录-${result.dateFrom}_${result.dateTo}`);
+  });
+
   // 模板与报告（M5）
   handle("templates:list", () => listTemplates());
 
@@ -533,8 +613,7 @@ export function registerIpcHandlers(): void {
   });
 
   // 导出命盘图片：渲染进程用 canvas 生成 PNG 的 dataURL，这里负责落盘
-  handle("export:image", (payload) => {
-    const o = asObject(payload);
+  handle("export:image", (payload) => {    const o = asObject(payload);
     const dataUrl = str(o, "dataUrl");
     const prefix = "data:image/png;base64,";
     if (!dataUrl.startsWith(prefix)) {

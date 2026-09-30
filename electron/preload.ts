@@ -11,6 +11,7 @@ const ALLOWED_CHANNELS = [
   /^daily:/,
   /^templates:/,
   /^report:/,
+  /^feedback:/,
   /^export:/
 ];
 

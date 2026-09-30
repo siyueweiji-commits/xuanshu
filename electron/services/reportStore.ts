@@ -126,16 +126,26 @@ export function exportReportFile(
   contentMd: string,
   title: string
 ): { saved: boolean; path: string; dir: string } {
-  const text = typeof contentMd === "string" ? contentMd.trim() : "";
+  return exportDataFile(contentMd, `.md`, title);
+}
+
+/** 通用文本导出：落到「文档/XuanShu」，扩展名与行尾由调用方给出 */
+export function exportDataFile(
+  content: string,
+  ext: string,
+  title: string
+): { saved: boolean; path: string; dir: string } {
+  const text = typeof content === "string" ? content.replace(/\s+$/, "") : "";
   if (!text) throw new Error("导出内容为空");
 
-  const safeTitle = (title || "xuanshu-report").replace(/[\\/:*?"<>|\s]+/g, "_").slice(0, 60);
+  const suffix = ext.startsWith(".") ? ext : `.${ext}`;
+  const safeTitle = (title || "xuanshu-export").replace(/[\\/:*?"<>|\s]+/g, "_").slice(0, 60);
   const dir = path.join(app.getPath("documents"), "XuanShu");
   fs.mkdirSync(dir, { recursive: true });
 
   const stamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
-  const file = path.join(dir, `${safeTitle}-${stamp}.md`);
-  fs.writeFileSync(file, text.endsWith("\n") ? text : `${text}\n`, "utf-8");
+  const file = path.join(dir, `${safeTitle}-${stamp}${suffix}`);
+  fs.writeFileSync(file, `${text}\n`, "utf-8");
 
   return { saved: true, path: file, dir };
 }

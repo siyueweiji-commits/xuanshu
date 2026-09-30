@@ -136,3 +136,13 @@ export function IconDoc({ className }: { className?: string }) {
     </Glyph>
   );
 }
+
+/** 反馈：圆圈内打勾 */
+export function IconCheck({ className }: { className?: string }) {
+  return (
+    <Glyph className={className}>
+      <circle cx="8" cy="8" r="5.7" />
+      <path d="M5.6 8.2 7.3 9.9l3.3-3.6" />
+    </Glyph>
+  );
+}

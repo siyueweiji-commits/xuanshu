@@ -76,6 +76,129 @@ const MOCK_PROFILES = [
   }
 ];
 
+const MOCK_FEEDBACKS = [
+  { id: 1, profile_id: null, date: "2026-09-22", event_type: "破财", description: "车胎爆了换胎 680", created_at: "2026-09-22 20:10:00", polarity: "bad", group: "财运", typeDesc: "意外支出、损失" },
+  { id: 2, profile_id: null, date: "2026-09-18", event_type: "争吵", description: "和供应商在电话里起了火", created_at: "2026-09-18 17:32:00", polarity: "bad", group: "人际", typeDesc: "口角、冲突、关系紧张" },
+  { id: 3, profile_id: null, date: "2026-09-12", event_type: "好事", description: "拖了半年的单子签了", created_at: "2026-09-12 15:02:00", polarity: "good", group: "事业", typeDesc: "顺利、有进展、得助" },
+  { id: 4, profile_id: null, date: "2026-09-05", event_type: "生病", description: "肠胃不适，跑了两趟医院", created_at: "2026-09-05 21:40:00", polarity: "bad", group: "健康", typeDesc: "身体不适、就医" }
+];
+
+/** 用真实服务层逐日算注意事项，再套上模拟事件，保证截图内容是真实输出 */
+function mockBacktest(dateFrom, dateTo) {
+  const from = new Date(dateFrom.replace(/-/g, "/"));
+  const to = new Date(dateTo.replace(/-/g, "/"));
+  const p2 = (n) => String(n).padStart(2, "0");
+  const ymd = (d) => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+  const byDate = new Map();
+  for (const f of MOCK_FEEDBACKS) {
+    const arr = byDate.get(f.date) || [];
+    arr.push(f);
+    byDate.set(f.date, arr);
+  }
+
+  const rows = [];
+  let scored = 0;
+  let hits = 0;
+  let eventDays = 0;
+  let quietDays = 0;
+  let quietWarningDays = 0;
+  const typeAgg = new Map();
+  const groupAgg = new Map();
+  const ruleDays = new Map();
+  const rank = { info: 0, caution: 1, warning: 2 };
+
+  for (let d = new Date(from.getTime()); d.getTime() <= to.getTime(); d.setDate(d.getDate() + 1)) {
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    const day = d.getDate();
+    const r = daily.calcDaily({ year: y, month: m, day: day });
+    const evs = byDate.get(ymd(d)) || [];
+    const groups = {};
+    let top = "info";
+    for (const a of r.advice) {
+      groups[a.group] = (groups[a.group] || 0) + 1;
+      if (rank[a.level] > rank[top]) top = a.level;
+      const cur = ruleDays.get(a.id) || { days: 0, text: a.text };
+      cur.days += 1;
+      ruleDays.set(a.id, cur);
+    }
+    const events = evs.map((f) => {
+      const list = f.group ? r.advice.filter((a) => a.group === f.group) : [];
+      const matched = list
+        .filter((a) => (f.polarity === "bad" ? a.level !== "info" : a.level === "info"))
+        .slice(0, 3)
+        .map((a) => ({ id: a.id, text: a.text, level: a.level }));
+      const hit = f.polarity === "neutral" ? null : matched.length > 0;
+      if (hit !== null) {
+        scored += 1;
+        if (hit) hits += 1;
+        const t = typeAgg.get(f.event_type) || { total: 0, hit: 0 };
+        t.total += 1;
+        if (hit) t.hit += 1;
+        typeAgg.set(f.event_type, t);
+        if (f.group) {
+          const g = groupAgg.get(f.group) || { eventCount: 0, hitCount: 0 };
+          g.eventCount += 1;
+          if (hit) g.hitCount += 1;
+          groupAgg.set(f.group, g);
+        }
+      }
+      return { id: f.id, eventType: f.event_type, polarity: f.polarity, group: f.group, matched, hit, description: f.description };
+    });
+    if (evs.length) eventDays += 1;
+    else {
+      quietDays += 1;
+      if (top === "warning") quietWarningDays += 1;
+    }
+    const sc = events.filter((e) => e.hit !== null);
+    rows.push({
+      date: ymd(d),
+      weekday: "日一二三四五六"[d.getDay()],
+      adviceCount: r.advice.length,
+      groups,
+      topLevel: top,
+      events,
+      allHit: sc.length > 0 && sc.every((e) => e.hit === true),
+      allMiss: sc.length > 0 && sc.every((e) => e.hit === false)
+    });
+  }
+
+  return {
+    dateFrom,
+    dateTo,
+    profileId: null,
+    summary: {
+      days: rows.length,
+      eventDays,
+      scoredEvents: scored,
+      hitEvents: hits,
+      hitRate: scored === 0 ? 0 : hits / scored,
+      byType: [...typeAgg.entries()]
+        .map(([eventType, v]) => ({
+          eventType,
+          total: v.total,
+          hit: v.hit,
+          rate: v.total === 0 ? 0 : v.hit / v.total
+        }))
+        .sort((a, b) => b.total - a.total),
+      byGroup: [...groupAgg.entries()].map(([group, v]) => ({
+        group,
+        eventCount: v.eventCount,
+        hitCount: v.hitCount,
+        rate: v.eventCount === 0 ? 0 : v.hitCount / v.eventCount
+      })),
+      quietDays,
+      quietWarningDays,
+      ruleTop: [...ruleDays.entries()]
+        .map(([id, v]) => ({ id, days: v.days, text: v.text }))
+        .sort((a, b) => b.days - a.days || a.id.localeCompare(b.id))
+        .slice(0, 12)
+    },
+    rows,
+    disclaimer: "本应用为文化娱乐工具，所有输出仅供自省参考，不构成医疗、法律、投资或安全建议。"
+  };
+}
+
 const HANDLERS = {
   "app:info": () => ({
     appName: "玄枢 XuanShu",
@@ -313,7 +436,44 @@ const HANDLERS = {
     saved: true,
     path: path.join("C:\\Users", "Documents", "XuanShu", "流日参考报告-20260930125210.md")
   }),
-  "daily:saved": () => null
+  "daily:saved": () => null,
+
+  /* ---------- M7：反馈与回测（截图用静态数据，不落库） ---------- */
+
+  "feedback:types": () => [
+    { key: "好事", group: "事业", polarity: "good", desc: "顺利、有进展、得助" },
+    { key: "进财", group: "财运", polarity: "good", desc: "进项、回款、收益" },
+    { key: "破财", group: "财运", polarity: "bad", desc: "意外支出、损失" },
+    { key: "罚单", group: "出行", polarity: "bad", desc: "违章、罚款、行程受阻" },
+    { key: "争吵", group: "人际", polarity: "bad", desc: "口角、冲突、关系紧张" },
+    { key: "生病", group: "健康", polarity: "bad", desc: "身体不适、就医" },
+    { key: "工作压力", group: "事业", polarity: "bad", desc: "加班、被催、任务受阻" },
+    { key: "出行不顺", group: "出行", polarity: "bad", desc: "延误、耽误、路况问题" },
+    { key: "其他", group: null, polarity: "neutral", desc: "不参与命中率统计" }
+  ],
+
+  "feedback:list": () => MOCK_FEEDBACKS,
+
+  "feedback:create": (o) => ({
+    id: 99,
+    profile_id: null,
+    date: str(o, "date"),
+    event_type: str(o, "eventType"),
+    description: str(o, "description") || null,
+    created_at: "2026-09-30 13:40:00",
+    polarity: "bad",
+    group: "财运",
+    typeDesc: "意外支出、损失"
+  }),
+  "feedback:update": (o) => ({ id: num(o, "id") }),
+  "feedback:delete": () => ({ deleted: true }),
+  "feedback:clear": () => ({ removed: 0 }),
+  "feedback:export": () => ({
+    saved: true,
+    path: path.join("C:\\Users", "Documents", "XuanShu", "回测记录-2026-09-01_2026-09-30-20260930134000.csv")
+  }),
+
+  "feedback:backtest": (o) => mockBacktest(str(o, "dateFrom"), str(o, "dateTo"))
 };
 
 contextBridge.exposeInMainWorld("xuanshu", {
