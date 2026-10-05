@@ -1,5 +1,5 @@
 {
-  "version": "2026.09.30",
+  "version": "2026.10.05",
   "note": "全国地级市经纬度（真太阳时校正用），由 GeoNames dump 生成，见 gen_city_coords.py",
   "source": "GeoNames CN.zip (admin1/admin2 + PPLA 驻地)",
   "count": 353,
@@ -620,7 +620,7 @@
       "name": "大兴安岭",
       "province": "黑龙江",
       "longitude": 124.1117,
-      "latitude": 50.7973
+      "latitude": 50.4167
     },
     {
       "name": "哈尔滨",

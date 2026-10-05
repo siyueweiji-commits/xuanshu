@@ -59,6 +59,13 @@ app.whenReady().then(async () => {
 
   const userDataRoot = path.join(USER_DATA, "data");
 
+  // 数据版本号以数据仓库的 manifest 为准。
+  // 之前这里硬编码 "2026.09.30"，每次数据升版都要连带改测试，
+  // 容易漏改而把「版本已正确落地」误判成回归。改为动态读取。
+  const DATA_VERSION = JSON.parse(
+    fs.readFileSync(path.join(DATA_REPO, "manifest.json"), "utf-8")
+  ).version;
+
   /* ================= A. 更新源解析 ================= */
   head("A. 更新源解析（http / file:// / 本地目录）");
   {
@@ -107,8 +114,8 @@ app.whenReady().then(async () => {
     const r = await up.runUpdate(DATA_REPO);
     check(r.ok === true, `执行成功（error=${r.error}）`);
     check(r.updated === 0 && r.skipped === r.files.length, `全部跳过（updated ${r.updated} / skipped ${r.skipped}）`);
-    check(r.toVersion === "2026.09.30", `目标版本 ${r.toVersion}`);
-    check(up.localVersion() === "2026.09.30", `本地版本已落地为 ${up.localVersion()}`);
+    check(r.toVersion === DATA_VERSION, `目标版本 ${r.toVersion}`);
+    check(up.localVersion() === DATA_VERSION, `本地版本已落地为 ${up.localVersion()}`);
     check(fs.existsSync(path.join(userDataRoot, "manifest.json")), "用户目录已写入 manifest.json");
     check(r.backupDir === null, "无文件落地时不产生备份目录");
   }
@@ -184,7 +191,7 @@ app.whenReady().then(async () => {
     check(r.failed === 1 && r.updated === 0, `哈希不符被拦下（failed ${r.failed} / updated ${r.updated}）`);
     check(r.files[0] && /哈希校验不通过/.test(r.files[0].error ?? ""), `错误信息明确：${r.files[0] && r.files[0].error}`);
     check(!fs.existsSync(path.join(userDataRoot, "rules", "tampered.json")), "被篡改的文件没有落地");
-    check(up.localVersion() === "2026.09.30", "失败时不推进本地版本号");
+    check(up.localVersion() === DATA_VERSION, "失败时不推进本地版本号");
   }
 
   /* ================= G. manifest 越界/非法被拒绝 ================= */
